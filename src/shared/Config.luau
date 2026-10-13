@@ -1,137 +1,112 @@
--- Configuración central del juego: balance de la partida, armas, pasivas y enemigos.
--- Todo el balance vive aquí para poder ajustarlo sin tocar la lógica.
+-- Parámetros globales de la recreación.
+-- Casi todo lo de este archivo es PROVISIONAL: la especificación no fija estos valores y deben
+-- calibrarse contra la versión de referencia (v1.0.69). Ver docs/MATRIZ.md.
 
 local Config = {}
 
-Config.Run = {
-	Duration = 600, -- segundos hasta que aparece el jefe final
-	MaxEnemies = 150,
-	SpawnDistanceMin = 45,
-	SpawnDistanceMax = 70,
-	BaseSpawnInterval = 1.2,
-	MinSpawnInterval = 0.2,
-	HealthScalePerMinute = 0.35, -- +35% de vida enemiga por minuto
-	RestartDelay = 8,
-	ArenaHalfSize = 280,
-}
+Config.SchemaVersion = 1
+Config.ReferenceVersion = "1.0.69"
+
+-- Escala entre las unidades de la referencia y los studs de Roblox. [Pendiente de verificar]
+Config.UnitToStuds = 1.2
 
 Config.Player = {
-	MaxHealth = 100,
-	WalkSpeed = 20,
-	PickupRadius = 10,
-	MaxWeapons = 4,
-	StartingWeapon = "MagicBolt",
+	BaseMaxHealth = 100,
+	BaseWalkSpeed = 22, -- studs/s para Speed 1,0×
+	BaseJumpHeight = 8,
+	BasePickupRange = 8,
+	BaseCritDamage = 2.0, -- multiplicador de crítico base [Pendiente]
+	ShieldRechargeDelay = 5, -- Referencia comunitaria (wiki Stats)
+	ShieldRechargeRate = 0.25, -- fracción del escudo por segundo [Pendiente]
+	FallDamageSpeed = 85, -- velocidad vertical (studs/s) desde la que hay daño de caída [Pendiente]
+	FallDamagePerSpeed = 0.6,
+	ContactInvulnerability = 0.35, -- s de invulnerabilidad tras un golpe [Pendiente]
+	MaxLevel = 999,
 }
 
+-- Experiencia necesaria para el siguiente nivel [Pendiente]
 function Config.xpToNext(level: number): number
-	return math.floor(5 + (level - 1) * 4 + (level - 1) ^ 1.5)
+	return math.floor(10 + (level - 1) * 6 + (level - 1) ^ 1.6)
 end
 
-Config.Weapons = {
-	MagicBolt = {
-		Name = "Rayo Mágico",
-		Description = "Dispara al enemigo más cercano.",
-		Kind = "Projectile",
-		MaxLevel = 6,
-		Damage = 12,
-		Cooldown = 1.0,
-		Speed = 70,
-		Range = 70,
-		Count = 1,
-		Pierce = 1,
-		Color = Color3.fromRGB(120, 180, 255),
-	},
-	Aura = {
-		Name = "Aura Ardiente",
-		Description = "Quema a los enemigos a tu alrededor.",
-		Kind = "Aura",
-		MaxLevel = 6,
-		Damage = 5,
-		Cooldown = 0.5,
-		Radius = 9,
-		Color = Color3.fromRGB(255, 120, 60),
-	},
-	Blades = {
-		Name = "Cuchillas Orbitales",
-		Description = "Cuchillas que giran a tu alrededor.",
-		Kind = "Orbit",
-		MaxLevel = 6,
-		Damage = 10,
-		Cooldown = 0.4, -- tiempo mínimo entre golpes al mismo enemigo
-		Radius = 7,
-		Count = 2,
-		RotationSpeed = 3,
-		Color = Color3.fromRGB(230, 230, 240),
-	},
+Config.Slots = {
+	BaseWeapons = 2,
+	BaseTomes = 2,
+	MaxWeapons = 4,
+	MaxTomes = 4,
+	WeaponMaxLevel = 40, -- Referencia comunitaria
+	TomeMaxLevel = 99, -- Referencia comunitaria
+	-- Quests completadas necesarias para poder comprar cada ranura (Referencia comunitaria)
+	WeaponSlotQuests = { 25, 45 },
+	TomeSlotQuests = { 35, 55 },
 }
 
--- Estadísticas de un arma según su nivel.
-function Config.weaponStats(id: string, level: number)
-	local base = Config.Weapons[id]
-	local stats = table.clone(base)
-	stats.Damage = base.Damage * (1 + 0.3 * (level - 1))
-	if base.Count then
-		stats.Count = base.Count + math.floor((level - 1) / 2)
-	end
-	if base.Radius then
-		stats.Radius = base.Radius * (1 + 0.1 * (level - 1))
-	end
-	if base.Pierce then
-		stats.Pierce = base.Pierce + math.floor((level - 1) / 3)
-	end
-	return stats
-end
-
-Config.Passives = {
-	Might = { Name = "Fuerza", Description = "+15% de daño", MaxLevel = 5, Stat = "DamageMult", PerLevel = 0.15 },
-	Haste = { Name = "Prisa", Description = "-8% de recarga", MaxLevel = 5, Stat = "CooldownMult", PerLevel = -0.08 },
-	Swiftness = { Name = "Agilidad", Description = "+10% de velocidad", MaxLevel = 5, Stat = "SpeedMult", PerLevel = 0.10 },
-	Vitality = { Name = "Vitalidad", Description = "+20 de vida máxima", MaxLevel = 5, Stat = "BonusHealth", PerLevel = 20 },
-	Magnet = { Name = "Imán", Description = "+30% de radio de recogida", MaxLevel = 5, Stat = "PickupMult", PerLevel = 0.30 },
+Config.Offers = {
+	Choices = 3,
+	-- Pesos base por rareza de mejora [Pendiente]; la suerte desplaza el peso hacia arriba.
+	RarityWeights = { Common = 60, Uncommon = 25, Rare = 10, Epic = 4, Legendary = 1 },
 }
 
--- Damage es daño por segundo mientras el enemigo está en contacto con el jugador.
+Config.Items = {
+	-- Pesos base por rareza de objeto de cofre [Pendiente]
+	RarityWeights = { Common = 70, Rare = 22, Epic = 7, Legendary = 1 },
+}
+
+Config.Economy = {
+	ChestBaseCost = 15, -- [Pendiente]
+	ChestCostGrowth = 1.18, -- [Pendiente]
+	GoldPerKill = 1,
+	SilverPerMinute = 2, -- recompensa de plata al terminar [Pendiente]
+	SilverPerBoss = 15, -- [Pendiente]
+	SilverPotChance = 0.15, -- probabilidad de vasija de plata [Pendiente]
+	GreedDifficulty = 0.05, -- Referencia comunitaria: +5% por activación
+	GreedGold = 60, -- [Pendiente]
+	MicrowaveCost = 40, -- [Pendiente]
+	MicrowaveUses = { Common = 3, Rare = 2, Epic = 2, Legendary = 1 }, -- Referencia comunitaria
+	ShadyGuyOffers = 3,
+	ShadyGuyCost = { Common = 25, Rare = 50, Epic = 90, Legendary = 160 }, -- [Pendiente]
+}
+
 Config.Enemies = {
-	Slime = {
-		Health = 15,
-		Speed = 9,
-		Damage = 10,
-		XP = 1,
-		Size = Vector3.new(3, 3, 3),
-		Color = Color3.fromRGB(90, 200, 90),
-		UnlockTime = 0,
-		Weight = 10,
-	},
-	Runner = {
-		Health = 10,
-		Speed = 16,
-		Damage = 8,
-		XP = 1,
-		Size = Vector3.new(2, 4, 2),
-		Color = Color3.fromRGB(230, 200, 60),
-		UnlockTime = 60,
-		Weight = 5,
-	},
-	Brute = {
-		Health = 80,
-		Speed = 7,
-		Damage = 25,
-		XP = 5,
-		Size = Vector3.new(5, 6, 5),
-		Color = Color3.fromRGB(170, 60, 60),
-		UnlockTime = 180,
-		Weight = 2,
-	},
-	Boss = {
-		Health = 3000,
-		Speed = 10,
-		Damage = 40,
-		XP = 0,
-		Size = Vector3.new(12, 14, 12),
-		Color = Color3.fromRGB(120, 40, 160),
-		UnlockTime = math.huge,
-		Weight = 0,
-	},
+	MaxActive = 220,
+	SpawnDistanceMin = 40,
+	SpawnDistanceMax = 70,
+	EliteChance = 0.02, -- [Pendiente]
+	EliteHealthMult = 6,
+	EliteDamageMult = 1.6,
+	EliteSizeMult = 1.6,
+	HealthGrowthPerMinute = 0.30, -- [Pendiente]
+	DamageGrowthPerMinute = 0.10, -- [Pendiente]
+	AttackCooldown = 1.0,
+	SeparationRadius = 2.2,
+}
+
+Config.Status = {
+	PoisonTick = 0.5, -- Referencia comunitaria
+	PoisonDuration = 5, -- × multiplicador de duración (Referencia comunitaria)
+	BurnTick = 0.5, -- [Pendiente]
+	BurnDuration = 3, -- [Pendiente]
+	FreezeSlow = 0.70, -- Referencia comunitaria
+	BloodmarkDurationWeapon = 5, -- Referencia comunitaria
+	BloodmarkDurationLifesteal = 4,
+}
+
+-- Precios en plata: la especificación no los documenta. Todos [Pendiente].
+Config.ProvisionalPrices = {
+	Character = 60,
+	Weapon = 30,
+	Tome = 25,
+	Item = 15,
+	WeaponSlot = 150,
+	TomeSlot = 120,
+	Refresh = 40,
+	Skip = 30,
+	Banish = 50,
+}
+
+Config.Debug = {
+	-- Permite StartRun con contenido bloqueado en Studio para probar.
+	StudioUnlockAll = true,
 }
 
 return Config

@@ -1,0 +1,22 @@
+name: Pruebas
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  simulacion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Lune
+        run: |
+          curl -sSL -o lune.zip https://github.com/lune-org/lune/releases/download/v0.10.4/lune-0.10.4-linux-x86_64.zip
+          unzip -q lune.zip -d "$HOME/lune"
+          echo "$HOME/lune" >> "$GITHUB_PATH"
+      - name: Simulación del servidor
+        run: lune run tests/simulate
+      - name: Matriz de correspondencia al día
+        run: |
+          lune run tests/matrix
+          git diff --exit-code docs/MATRIZ.md

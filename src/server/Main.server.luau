@@ -1,245 +1,188 @@
--- Bucle principal de la partida: oleadas, jefe final, victoria/derrota y reinicio.
+-- Arranque del servidor: red, validación del catálogo, perfiles, inicio de partidas y bucle.
+-- Diseñado para un jugador por servidor (configura Max Players = 1 en Game Settings); cada
+-- jugador tiene su propia sesión aunque haya varios.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Net = require(Shared.Net)
+local Catalog = require(Shared.Catalog)
+local Config = require(Shared.Config)
+
+Net.setup()
+
 local Server = script.Parent
-local Ground = require(Server.Ground)
-local Map = require(Server.Map)
-local PlayerState = require(Server.PlayerState)
-local Enemies = require(Server.Enemies)
-local Gems = require(Server.Gems)
-local Weapons = require(Server.Weapons)
-local LevelUp = require(Server.LevelUp)
+local Fx = require(Server.Combat.Fx)
+local Items = require(Server.Combat.Items)
+local SaveService = require(Server.Save.SaveService)
+local RunSession = require(Server.Run.RunSession)
 
 Players.CharacterAutoLoads = false
+Fx.init()
+SaveService.start()
 
-local remotesFolder = Instance.new("Folder")
-remotesFolder.Name = "Remotes"
-remotesFolder.Parent = ReplicatedStorage
-
-local function remote(name: string): RemoteEvent
-	local r = Instance.new("RemoteEvent")
-	r.Name = name
-	r.Parent = remotesFolder
-	return r
-end
-
-local remotes = {
-	LevelUpOffer = remote("LevelUpOffer"),
-	ChooseUpgrade = remote("ChooseUpgrade"),
-	Hud = remote("Hud"),
-	RunEnded = remote("RunEnded"),
-}
-
-Map.build()
-Enemies.init()
-Gems.init()
-Weapons.init()
-LevelUp.init(remotes)
-
-local run = {
-	State = "Waiting", -- Waiting | Running | Ended
-	Elapsed = 0,
-	SpawnTimer = 0,
-	Boss = nil,
-}
-
-local function updateGroundIgnore()
-	local characters = {}
-	for _, player in Players:GetPlayers() do
-		if player.Character then
-			table.insert(characters, player.Character)
-		end
+-- Validación de referencias del catálogo al cargar
+local problems = Catalog.validate()
+for _, item in ipairs(Catalog.Items) do
+	if not Items.implemented(item.id) then
+		table.insert(problems, "Objeto sin comportamiento: " .. item.id)
 	end
-	Ground.setIgnore(characters)
+end
+if #problems > 0 then
+	warn("[Catálogo] Problemas encontrados:\n  " .. table.concat(problems, "\n  "))
+else
+	print(string.format("[Catálogo] OK: %d personajes, %d armas, %d tomos, %d objetos", #Catalog.Characters, #Catalog.Weapons, #Catalog.Tomes, #Catalog.Items))
 end
 
-local function spawnPlayer(player: Player)
-	PlayerState.reset(player)
-	Weapons.clearPlayer(player)
-	player:LoadCharacter()
-end
+local sessions: { [Player]: any } = {}
 
-local function startRun()
-	run.State = "Running"
-	run.Elapsed = 0
-	run.SpawnTimer = 0
-	run.Boss = nil
-	for _, player in Players:GetPlayers() do
-		spawnPlayer(player)
+local function sendProfile(player: Player)
+	local profile = SaveService.get(player)
+	if profile then
+		local summary = profile:summary()
+		summary.persistent = SaveService.persistent
+		Net.get("Profile"):FireClient(player, summary)
 	end
 end
 
-local function endRun(victory: boolean)
-	if run.State ~= "Running" then
+Net.get("GetProfile").OnServerInvoke = function(player)
+	local profile = SaveService.get(player)
+	if not profile then
+		return nil
+	end
+	local summary = profile:summary()
+	summary.persistent = SaveService.persistent
+	return summary
+end
+
+Net.get("Purchase").OnServerInvoke = function(player, key)
+	if typeof(key) ~= "string" or sessions[player] then
+		return false, "No disponible durante una partida"
+	end
+	local ok, message = SaveService.purchase(player, key)
+	if ok then
+		task.defer(sendProfile, player)
+	end
+	return ok, message
+end
+
+Net.get("StartRun").OnServerEvent:Connect(function(player, request)
+	if sessions[player] or typeof(request) ~= "table" then
 		return
 	end
-	run.State = "Ended"
-	remotes.RunEnded:FireAllClients(victory, run.Elapsed)
-	task.delay(Config.Run.RestartDelay, function()
-		Enemies.clear()
-		Gems.clear()
-		Weapons.clearAll()
-		if #Players:GetPlayers() > 0 then
-			startRun()
-		else
-			run.State = "Waiting"
+	local profile = SaveService.get(player)
+	if not profile then
+		return
+	end
+	local characterId, mapId, tier = request.character, request.map, request.tier
+	local character = Catalog.Character[characterId]
+	local map = Catalog.Map[mapId]
+	if not character or not map or not map.playable or typeof(tier) ~= "number" or not map.tiers[tier] then
+		return
+	end
+	local unlocked = profile:unlockedSet()
+	if not unlocked["char:" .. characterId] or not unlocked["map:" .. mapId] then
+		Net.get("Toast"):FireClient(player, "Ese contenido aún está bloqueado")
+		return
+	end
+	-- Tiers: el 2 requiere completar el 1 y el 3 requiere el 2 [Pendiente: confirmar regla]
+	if tier > 1 and not (Config.Debug.StudioUnlockAll and RunService:IsStudio()) then
+		if (profile.data.Counters[string.format("complete.%s.T%d", mapId, tier - 1)] or 0) < 1 then
+			Net.get("Toast"):FireClient(player, string.format("Completa %s Tier %d primero", map.name, tier - 1))
+			return
 		end
+	end
+	local session = RunSession.new(player, profile, { character = characterId, map = mapId, tier = tier })
+	sessions[player] = session
+	local ok, err = pcall(function()
+		session:start()
 	end)
-end
+	if not ok then
+		warn("[Run] Error al iniciar la partida:", err)
+		sessions[player] = nil
+		session:cleanup()
+		Net.get("Toast"):FireClient(player, "No se pudo iniciar la partida")
+	end
+end)
 
-Enemies.onDeath = function(enemy, killer)
-	if enemy.Def.XP > 0 then
-		Gems.spawn(enemy.Position, enemy.Def.XP)
+Net.get("ModalChoice").OnServerEvent:Connect(function(player, action, index)
+	local session = sessions[player]
+	if session and typeof(action) == "string" then
+		session:onModalChoice(action, index)
 	end
-	local state = killer and PlayerState.get(killer)
-	if state then
-		state.Kills += 1
-	end
-	if enemy == run.Boss then
-		endRun(true)
-	end
-end
+end)
 
-local function pickEnemyType(elapsed: number): string
-	local total = 0
-	local pool = {}
-	for id, def in Config.Enemies do
-		if def.Weight > 0 and elapsed >= def.UnlockTime then
-			total += def.Weight
-			table.insert(pool, { id = id, weight = def.Weight })
+Net.get("Pause").OnServerEvent:Connect(function(player, paused)
+	local session = sessions[player]
+	if session and typeof(paused) == "boolean" then
+		session:setPaused(paused)
+	end
+end)
+
+Net.get("QuitRun").OnServerEvent:Connect(function(player)
+	local session = sessions[player]
+	if session then
+		session:quit()
+	end
+end)
+
+Net.get("Aim").OnServerEvent:Connect(function(player, direction)
+	local session = sessions[player]
+	if session and typeof(direction) == "Vector3" and direction.Magnitude > 0.1 and direction.Magnitude < 10 then
+		session.aimDir = direction.Unit
+	end
+end)
+
+Net.get("SaveSettings").OnServerEvent:Connect(function(player, settings)
+	local profile = SaveService.get(player)
+	if not profile or typeof(settings) ~= "table" then
+		return
+	end
+	for key, value in settings do
+		local current = profile.data.Settings[key]
+		if current ~= nil and typeof(value) == typeof(current) then
+			profile.data.Settings[key] = value
 		end
 	end
-	local roll = math.random() * total
-	for _, entry in pool do
-		roll -= entry.weight
-		if roll <= 0 then
-			return entry.id
-		end
-	end
-	return pool[#pool].id
-end
+	profile.dirty = true
+end)
 
-local function spawnAround(center: Vector3, typeId: string, healthScale: number)
-	local half = Config.Run.ArenaHalfSize
-	local angle = math.random() * math.pi * 2
-	local distance = Config.Run.SpawnDistanceMin + math.random() * (Config.Run.SpawnDistanceMax - Config.Run.SpawnDistanceMin)
-	local x = math.clamp(center.X + math.cos(angle) * distance, -half, half)
-	local z = math.clamp(center.Z + math.sin(angle) * distance, -half, half)
-	local y = Ground.height(Vector3.new(x, 0, z), 0, 300)
-	return Enemies.spawn(typeId, Vector3.new(x, y, z), healthScale)
-end
-
-local function getTargets()
-	local targets = {}
-	for _, player in Players:GetPlayers() do
-		local character = player.Character
-		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-		local root = character and character:FindFirstChild("HumanoidRootPart")
-		local state = PlayerState.get(player)
-		if humanoid and root and humanoid.Health > 0 and state then
-			table.insert(targets, {
-				player = player,
-				root = root,
-				humanoid = humanoid,
-				state = state,
-				pickupRadius = Config.Player.PickupRadius * PlayerState.stats(state).PickupMult,
-			})
-		end
-	end
-	return targets
-end
-
-local function onPlayerAdded(player: Player)
-	player.CharacterAdded:Connect(function(character)
-		updateGroundIgnore()
-		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
-		humanoid.MaxHealth = Config.Player.MaxHealth
-		humanoid.Health = Config.Player.MaxHealth
-		PlayerState.applyCharacterStats(player)
-		humanoid.Died:Connect(function()
-			Weapons.clearPlayer(player)
-		end)
-	end)
-
-	if run.State == "Waiting" then
-		startRun()
-	elseif run.State == "Running" then
-		spawnPlayer(player)
-	end
-	-- Si la partida terminó, el jugador entra en el próximo reinicio.
-end
-
-Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerAdded:Connect(function(player)
+	SaveService.load(player)
+	sendProfile(player)
+end)
 for _, player in Players:GetPlayers() do
-	task.spawn(onPlayerAdded, player)
+	task.spawn(function()
+		SaveService.load(player)
+		sendProfile(player)
+	end)
 end
 
 Players.PlayerRemoving:Connect(function(player)
-	Weapons.clearPlayer(player)
-	PlayerState.remove(player)
-	task.defer(updateGroundIgnore)
+	local session = sessions[player]
+	if session then
+		session:quit()
+		sessions[player] = nil
+	end
+	SaveService.release(player)
 end)
 
-local hudTimer = 0
-
 RunService.Heartbeat:Connect(function(dt)
-	if run.State ~= "Running" then
-		return
-	end
-	run.Elapsed += dt
-
-	local targets = getTargets()
-	if #targets == 0 then
-		-- Espera a que los personajes terminen de cargar al inicio de la partida.
-		if run.Elapsed > 5 then
-			endRun(false)
+	for player, session in sessions do
+		local ok, err = pcall(session.update, session, dt)
+		if not ok then
+			warn("[Run] Error en la simulación:", err)
+			session:finish(false, "Error interno")
 		end
-		return
-	end
-
-	local minutes = run.Elapsed / 60
-	run.SpawnTimer -= dt
-	if run.SpawnTimer <= 0 and Enemies.count() < Config.Run.MaxEnemies then
-		run.SpawnTimer = math.max(Config.Run.MinSpawnInterval, Config.Run.BaseSpawnInterval * 0.85 ^ minutes)
-		local healthScale = 1 + minutes * Config.Run.HealthScalePerMinute
-		for _ = 1, 1 + math.floor(minutes / 2) do
-			local center = targets[math.random(#targets)].root.Position
-			spawnAround(center, pickEnemyType(run.Elapsed), healthScale)
+		if session.ended then
+			sessions[player] = nil
+			task.spawn(function()
+				SaveService.save(player)
+				sendProfile(player)
+			end)
 		end
 	end
-
-	if not run.Boss and run.Elapsed >= Config.Run.Duration then
-		run.Boss = spawnAround(targets[1].root.Position, "Boss", #targets)
-	end
-
-	Enemies.step(dt, targets)
-	local now = os.clock()
-	for _, target in targets do
-		Weapons.stepPlayer(target.player, target.state, target.root, dt, now)
-	end
-	Weapons.stepProjectiles(dt)
-	Gems.step(dt, targets, LevelUp.addXP)
-
-	hudTimer -= dt
-	if hudTimer <= 0 then
-		hudTimer = 0.2
-		for _, player in Players:GetPlayers() do
-			local state = PlayerState.get(player)
-			if state then
-				remotes.Hud:FireClient(player, {
-					Level = state.Level,
-					XP = state.XP,
-					XPToNext = state.XPToNext,
-					Kills = state.Kills,
-					Elapsed = run.Elapsed,
-					Duration = Config.Run.Duration,
-					BossAlive = run.Boss ~= nil and not run.Boss.Dead,
-				})
-			end
-		end
-	end
+	Fx.flushNumbers()
 end)
