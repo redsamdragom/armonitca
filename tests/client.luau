@@ -512,6 +512,32 @@ do
 	end), "Tony McVeloz")
 	screen = windows:GetChildren()[1]
 	check(hasText(screen, "Tony McVeloz") and hasText(screen, "Derrotar 2 minijefes") and hasText(screen, "Comprar: Arma - Daga Inalámbrica"), "ficha de Tony McVeloz con su misión y su arma")
+	click(byText("TOMOS"), "TOMOS")
+	screen = windows:GetChildren()[1]
+	local tomeCells = 0
+	for _, t in ipairs(Catalog.Tomes) do
+		if find(screen, function(d)
+			return d:IsA("GuiButton") and d.Name == t.id
+		end) then
+			tomeCells += 1
+		end
+	end
+	check(tomeCells == #Catalog.Tomes, string.format("la pestaña TOMOS muestra los %d tomos", tomeCells))
+	check(hasText(screen, "Tomo de Agilidad"), "ficha del tomo con su nombre en español")
+	-- Con el ID pegado en Data/Images se usa la imagen subida
+	local Images = req(Harness.shared.Data.Images)
+	Images.Tomes.Agility = "rbxassetid://123"
+	click(byText("TOMOS"), "TOMOS")
+	click(windowButton(function(d)
+		return d.Name == "Cooldown"
+	end), "Cooldown")
+	click(windowButton(function(d)
+		return d.Name == "Agility"
+	end), "Agility")
+	check(find(windows, function(d)
+		return d:IsA("ImageLabel") and d.Image == "rbxassetid://123"
+	end) ~= nil, "el tomo con ID muestra su imagen")
+	Images.Tomes.Agility = ""
 	click(windowButton(function(d)
 		return d.Name == "Close"
 	end), "X")
@@ -702,6 +728,9 @@ hudTexts = table.concat(texts(hudGui), " | ")
 check(string.find(hudTexts, "FINAL SWARM", 1, true) ~= nil and string.find(hudTexts, "Jefe de prueba", 1, true) ~= nil, "HUD con jefe y Final Swarm")
 check(string.find(hudTexts, "(+25)", 1, true) ~= nil and string.find(hudTexts, "Escudo 12", 1, true) ~= nil, "HUD con sobrevida y escudo")
 check(hasText(hudGui, "×4"), "objetos con recuento")
+local tomeRow = hudGui:FindFirstChild("Tomes", true)
+check(tomeRow ~= nil and tomeRow:FindFirstChild(Catalog.Tomes[1].id) ~= nil, "icono del tomo de la partida en el HUD")
+check(string.find(hudTexts, "Tomo de Agilidad", 1, true) ~= nil, "nombre del tomo en español en el HUD")
 
 attempt("Toast", function()
 	Net.get("Toast").OnClientEvent:Fire("¡Aviso de prueba!")
@@ -782,6 +811,11 @@ local function cardsOf()
 	return list
 end
 ClientState.settings.autoPick = false
+-- Carta de tomo: icono arriba y nombre en español
+modal({ kind = "LevelUp", title = "¡Subiste de nivel!", choices = { { type = "TomeNew", id = "Agility", rarity = "Common", name = "Agility Tome", subtitle = "¡Nuevo tomo!", desc = "+15% de velocidad", changes = {} } }, canSkip = false, charges = { Refresh = 0, Skip = 0, Banish = 0 }, remaining = 0 })
+check(modalGui:FindFirstChild("TomeIcon", true) ~= nil, "la carta de tomo lleva su icono")
+check(string.find(table.concat(texts(modalGui), " | "), "Tomo de Agilidad", 1, true) ~= nil, "la carta de tomo muestra el nombre en español")
+modal(nil)
 local levelUp = { kind = "LevelUp", title = "¡Subiste de nivel!", choices = { choice(1), choice(2), choice(3) }, canSkip = false, charges = { Refresh = 1, Skip = 1, Banish = 1 }, remaining = 2 }
 modal(levelUp)
 check(modalGui.Enabled and #cardsOf() == 3, "subida de nivel con 3 cartas")

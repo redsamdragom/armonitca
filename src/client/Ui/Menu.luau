@@ -14,6 +14,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Theme = require(script.Parent.Theme)
 local Preview = require(script.Parent.Preview)
+local Icons = require(script.Parent.Icons)
 local Spanish = require(ReplicatedStorage.Shared.Data.Spanish)
 local Images = require(ReplicatedStorage.Shared.Data.Images)
 
@@ -168,13 +169,6 @@ local function drawSword(holder: GuiObject)
 	edged(round(shape(holder, C.Gold, 0.165, 0.835, 0.14, 0.14, 2)))
 end
 
-local function drawBook(holder: GuiObject)
-	edged(round(shape(holder, Color3.fromRGB(240, 232, 205), 0.56, 0.52, 0.6, 0.78, 1), 3))
-	edged(round(shape(holder, Color3.fromRGB(120, 70, 175), 0.47, 0.5, 0.6, 0.8, 2), 3))
-	shape(holder, Color3.fromRGB(85, 45, 130), 0.21, 0.5, 0.08, 0.8, 3)
-	edged(shape(holder, C.Gold, 0.5, 0.42, 0.2, 0.2, 3, 45), 1)
-end
-
 local function drawGem(holder: GuiObject, color: Color3)
 	edged(shape(holder, color, 0.5, 0.5, 0.6, 0.6, 1, 45), 2)
 	shape(holder, color:Lerp(WHITE, 0.45), 0.5, 0.5, 0.3, 0.3, 2, 45)
@@ -275,7 +269,11 @@ local function drawIcon(holder: GuiObject, kind: string, id: string?)
 	elseif kind == "weapon" then
 		drawSword(holder)
 	elseif kind == "tome" then
-		drawBook(holder)
+		if id then
+			Icons.tome(holder, id)
+		else
+			Icons.book(holder)
+		end
 	elseif kind == "item" then
 		local item = id and Catalog.Item[id]
 		drawGem(holder, if item then Theme.Rarity[item.rarity] else C.Text)
@@ -1265,6 +1263,8 @@ local function contentName(kind: string, id: string, fallback: string): string
 		return characterName(id)
 	elseif kind == "weapon" then
 		return Spanish.weaponName(id, fallback)
+	elseif kind == "tome" then
+		return Spanish.tomeName(id, fallback)
 	end
 	return fallback
 end
@@ -1344,6 +1344,13 @@ end
 local function unlockIcon(holder: GuiObject, e)
 	if e.kind == "char" then
 		portrait(holder, e.id, not e.owned)
+		return
+	end
+	if e.kind == "tome" then
+		local inner = Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.94, 0.94), Parent = holder })
+		if not Icons.tome(inner, e.id, not e.owned) and not e.owned then
+			Theme.frame({ Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2, Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = holder })
+		end
 		return
 	end
 	local image = if e.kind == "weapon" then Images.get(Images.Weapons, e.id) elseif e.kind == "hat" then Images.get(Images.Hats, e.id) else nil

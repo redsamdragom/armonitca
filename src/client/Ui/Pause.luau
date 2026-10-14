@@ -7,6 +7,7 @@ local Stats = require(ReplicatedStorage.Shared.Stats)
 local Net = require(ReplicatedStorage.Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Theme = require(script.Parent.Theme)
+local Spanish = require(ReplicatedStorage.Shared.Data.Spanish)
 
 local Pause = {}
 
@@ -46,7 +47,7 @@ local function refresh()
 		end
 		table.insert(lines, "<b>Tomos</b>")
 		for _, t in hud.tomes do
-			table.insert(lines, string.format("  %s (Nv %d) — %s", t.name, t.level, Catalog.Tome[t.id].desc))
+			table.insert(lines, string.format("  %s (Nv %d) — %s", Spanish.tomeName(t.id, t.name), t.level, Catalog.Tome[t.id].desc))
 		end
 		table.insert(lines, "<b>Objetos</b>")
 		for _, item in hud.items do

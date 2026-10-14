@@ -77,9 +77,20 @@ Los retratos de los personajes, los iconos de armas, pasivas y skins, y las silu
 
 Mientras un campo esté vacío, el juego dibuja un sustituto: el busto del modelo del personaje o un icono hecho con primitivas. Los nombres y las frases en español están en `src/shared/Data/Spanish.luau`.
 
+### Tomos
+
+Las 23 imágenes de los tomos están en `assets/tomos/`. Cada archivo lleva el número original y el tomo al que corresponde (`tomo-03-Cooldown.png`). Se ven en Desbloqueos (pestaña TOMOS), en las cartas de subida de nivel y en la fila de tomos del HUD.
+
+1. En Studio abre **View → Asset Manager → Bulk Import** y selecciona las 23 imágenes a la vez.
+2. Con clic derecho en cada imagen, **Copy ID to Clipboard**.
+3. Pega cada ID en `Images.Tomes` de `src/shared/Data/Images.luau`. El comentario de cada línea indica su archivo.
+
+Sin ID, cada tomo se dibuja como un libro del color de su imagen.
+
 ## Estructura
 
 ```text
+assets/tomos/             Imágenes de los 23 tomos (para subir a Roblox)
 src/shared/
   Config.luau            Parámetros globales (provisionales marcados con [Pendiente])
   Catalog.luau           Índice por id, contenido comprable y validación

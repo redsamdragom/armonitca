@@ -8,6 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 local Net = require(ReplicatedStorage.Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Theme = require(script.Parent.Theme)
+local Icons = require(script.Parent.Icons)
+local Spanish = require(ReplicatedStorage.Shared.Data.Spanish)
 
 local Hud = {}
 
@@ -137,6 +139,9 @@ function Hud.init()
 
 	-- Armas y tomos
 	refs.loadout = label({ Text = "", RichText = true, TextSize = 14, Size = UDim2.new(0, 360, 0, 200), Position = UDim2.new(0, 12, 1, -212), TextYAlignment = Enum.TextYAlignment.Bottom, TextStrokeTransparency = 0.4, Parent = root })
+	-- Iconos de los tomos de la partida, con su nivel
+	refs.tomeRow = Theme.frame({ Name = "Tomes", Size = UDim2.new(0, 400, 0, 44), Position = UDim2.new(0, 12, 1, -262), BackgroundTransparency = 1, Parent = root })
+	Theme.list(refs.tomeRow, Enum.FillDirection.Horizontal, 4)
 	-- Objetos
 	local items = Theme.frame({ Size = UDim2.new(0, 420, 0, 120), Position = UDim2.new(1, -432, 1, -132), BackgroundTransparency = 1, Parent = root })
 	local grid = Instance.new("UIGridLayout")
@@ -289,10 +294,27 @@ function Hud.update(data)
 		table.insert(lines, string.format("  %s  <font color=\"#%s\">Nv %d</font>", w.name, C.Accent:ToHex(), w.level))
 	end
 	table.insert(lines, "<b>Tomos</b>")
+	local tomeKey = {}
 	for _, t in data.tomes do
-		table.insert(lines, string.format("  %s  <font color=\"#%s\">Nv %d</font>", t.name, C.XP:ToHex(), t.level))
+		table.insert(lines, string.format("  %s  <font color=\"#%s\">Nv %d</font>", Spanish.tomeName(t.id, t.name), C.XP:ToHex(), t.level))
+		table.insert(tomeKey, t.id .. ":" .. t.level)
 	end
 	refs.loadout.Text = table.concat(lines, "\n")
+	local tomeSignature = table.concat(tomeKey, ",")
+	if tomeSignature ~= refs.tomeKey then
+		refs.tomeKey = tomeSignature
+		for _, child in refs.tomeRow:GetChildren() do
+			if child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
+		for i, t in data.tomes do
+			local cell = Theme.frame({ Name = t.id, BackgroundColor3 = Color3.fromRGB(20, 22, 24), BackgroundTransparency = 0.3, Size = UDim2.fromOffset(44, 44), LayoutOrder = i, Parent = refs.tomeRow })
+			Theme.corner(cell, 4)
+			Icons.tome(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(2, 2), Size = UDim2.new(1, -4, 1, -4), Parent = cell }), t.id)
+			label({ Text = tostring(t.level), TextSize = 14, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, 0), Size = UDim2.fromOffset(30, 16), ZIndex = 5, TextStrokeTransparency = 0.2, Parent = cell })
+		end
+	end
 
 	local signature = {}
 	for _, item in data.items do

@@ -60,6 +60,36 @@ Spanish.Weapons = {
 	Scythe = "Guadaña",
 }
 
+Spanish.Tomes = {
+	Agility = "Tomo de Agilidad",
+	Cooldown = "Tomo de Enfriamiento",
+	Damage = "Tomo de Daño",
+	Evasion = "Tomo de Evasión",
+	Golden = "Tomo Dorado",
+	Health = "Tomo de Salud",
+	Knockback = "Tomo de Retroceso",
+	Precision = "Tomo de Precisión",
+	ProjectileSpeed = "Tomo de Velocidad de Proyectil",
+	Regen = "Tomo de Regeneración",
+	Shield = "Tomo de Escudo",
+	Silver = "Tomo de Plata",
+	Size = "Tomo de Tamaño",
+	Armor = "Tomo de Armadura",
+	Attraction = "Tomo de Atracción",
+	Bloody = "Tomo Sangriento",
+	Chaos = "Tomo del Caos",
+	Cursed = "Tomo Maldito",
+	Duration = "Tomo de Duración",
+	Luck = "Tomo de Suerte",
+	Quantity = "Tomo de Cantidad",
+	Thorns = "Tomo de Espinas",
+	XP = "Tomo de Experiencia",
+}
+
+function Spanish.tomeName(id: string, fallback: string): string
+	return Spanish.Tomes[id] or fallback
+end
+
 function Spanish.characterName(id: string, fallback: string): string
 	local entry = Spanish.Characters[id]
 	return if entry then entry.name else fallback

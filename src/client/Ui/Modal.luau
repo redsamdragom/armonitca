@@ -8,6 +8,8 @@ local UserInputService = game:GetService("UserInputService")
 local Net = require(ReplicatedStorage.Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Theme = require(script.Parent.Theme)
+local Icons = require(script.Parent.Icons)
+local Spanish = require(ReplicatedStorage.Shared.Data.Spanish)
 
 local Modal = {}
 
@@ -78,18 +80,28 @@ local function render(data)
 		for _, change in choice.changes or {} do
 			table.insert(lines, "• " .. change.text)
 		end
+		-- Tomos: su icono arriba y el nombre en español
+		local isTome = (choice.type == "TomeUp" or choice.type == "TomeNew") and choice.id ~= nil
+		local top = 0
+		local name = choice.name or ""
+		if isTome then
+			Icons.tome(Theme.frame({ Name = "TomeIcon", BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromOffset(64, 64), Parent = card }), choice.id)
+			top = 68
+			name = Spanish.tomeName(choice.id, name)
+		end
 		Theme.label({
 			RichText = true,
 			TextWrapped = true,
 			TextYAlignment = Enum.TextYAlignment.Top,
-			Size = UDim2.fromScale(1, 1),
+			Position = UDim2.fromOffset(0, top),
+			Size = UDim2.new(1, 0, 1, -top),
 			TextSize = 14,
 			Font = Theme.FontBody,
 			Text = string.format(
 				"<font size=\"12\" color=\"#%s\">%s</font>\n<b><font size=\"20\">%s</font></b>\n<font color=\"#%s\">%s</font>\n\n%s\n\n<font color=\"#%s\">%s</font>\n\n<font size=\"12\" color=\"#%s\">[%d]</font>",
 				rarityColor:ToHex(),
 				Theme.RarityName[choice.rarity] or "",
-				choice.name or "",
+				name,
 				C.Accent:ToHex(),
 				choice.subtitle or "",
 				choice.desc or "",
