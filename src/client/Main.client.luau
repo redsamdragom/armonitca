@@ -1,15 +1,16 @@
--- Arranque del cliente: menús, HUD, elecciones, pausa, resultados, números de daño y movimiento.
+-- Arranque del cliente: escena del menú, menús, HUD, elecciones, pausa, resultados, números de daño
+-- y movimiento.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
-local RunService = game:GetService("RunService")
 local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net"))
 
 local Client = script.Parent
 local ClientState = require(Client.ClientState)
 local Movement = require(Client.Movement)
 local Ui = Client.Ui
+local MenuScene = require(Ui.MenuScene)
 local Menu = require(Ui.Menu)
 local Hud = require(Ui.Hud)
 local Modal = require(Ui.Modal)
@@ -22,40 +23,18 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 end)
 
-local camera = workspace.CurrentCamera
-local menuAngle = 0
-local menuCamera: RBXScriptConnection?
-
-local function startMenuCamera()
-	if menuCamera then
-		return
-	end
-	camera.CameraType = Enum.CameraType.Scriptable
-	menuCamera = RunService.RenderStepped:Connect(function(dt)
-		menuAngle += dt * 0.05
-		local pos = Vector3.new(math.cos(menuAngle) * 120, 60, math.sin(menuAngle) * 120)
-		camera.CFrame = CFrame.lookAt(pos, Vector3.zero)
-	end)
-end
-
-local function stopMenuCamera()
-	if menuCamera then
-		menuCamera:Disconnect()
-		menuCamera = nil
-	end
-	camera.CameraType = Enum.CameraType.Custom
-end
-
+-- La escena de fondo (bosque desenfocado) controla la cámara mientras el menú está abierto.
 local function showMenu()
 	ClientState.inRun = false
 	Hud.show(false)
 	Menu.show(true)
-	startMenuCamera()
+	MenuScene.show(true)
 	task.spawn(function()
 		ClientState.setProfile(Net.get("GetProfile"):InvokeServer())
 	end)
 end
 
+MenuScene.init()
 Menu.init()
 Hud.init()
 Modal.init()
@@ -69,11 +48,11 @@ Net.get("Profile").OnClientEvent:Connect(ClientState.setProfile)
 Net.get("RunStarted").OnClientEvent:Connect(function()
 	ClientState.inRun = true
 	Menu.show(false)
+	MenuScene.show(false)
 	Hud.show(true)
-	stopMenuCamera()
 	local character = Players.LocalPlayer.Character
 	if character then
-		camera.CameraSubject = character:FindFirstChildOfClass("Humanoid")
+		workspace.CurrentCamera.CameraSubject = character:FindFirstChildOfClass("Humanoid")
 	end
 end)
 

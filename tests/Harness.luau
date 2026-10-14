@@ -345,6 +345,8 @@ local function validatePayload(value, path, seen)
 	return nil
 end
 
+Harness.validatePayload = validatePayload
+
 local function logRemote(self, direction, player, ...)
 	local name = self._props.Name
 	local args = table.pack(...)
@@ -458,6 +460,9 @@ function Harness.build(root)
 	services.DataStoreService.GetDataStore = function()
 		error("DataStore no disponible en el arnés")
 	end
+	services.DataStoreService.GetOrderedDataStore = function()
+		error("OrderedDataStore no disponible en el arnés")
+	end
 	local players = {}
 	services.Players.GetPlayers = function()
 		return table.clone(players)
@@ -570,6 +575,9 @@ end
 
 function Harness.addPlayer(userId)
 	local player = new("Player", { Name = "Jugador" .. userId, UserId = userId })
+	player.GetFriendsAsync = function()
+		error("Lista de amigos no disponible en el arnés")
+	end
 	table.insert(Harness.players, player)
 	Harness.localPlayer = player
 	return player

@@ -7,6 +7,13 @@ local Config = {}
 Config.SchemaVersion = 1
 Config.ReferenceVersion = "1.0.69"
 
+-- Menú principal
+Config.GameTitle = "ARMONITCA"
+Config.GameVersion = "0.2.0"
+-- Invitación del servidor de Discord (p. ej. "https://discord.gg/xxxx"). Vacía: el botón DISCORD
+-- avisa de que falta configurarla.
+Config.DiscordInvite = ""
+
 -- Escala entre las unidades de la referencia y los studs de Roblox. [Pendiente de verificar]
 Config.UnitToStuds = 1.2
 

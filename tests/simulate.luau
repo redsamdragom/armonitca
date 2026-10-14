@@ -6,6 +6,7 @@
 --   * todas las armas y todos los objetos se ejecutan sin errores
 --   * cofres, santuarios, microondas, vendedor, jefe, cambio de etapa y final funcionan
 --   * el progreso de la cuenta (contadores, desbloqueos, compras) se aplica bien
+--   * la clasificación semanal ordena, conserva la mejor marca y responde según el contrato
 --   * los mensajes al cliente son serializables
 
 local process = require("@lune/process")
@@ -290,6 +291,74 @@ do
 	check(profile:weaponSlots() == 2 and profile:tomeSlots() == 2, "ranuras iniciales: 2 armas y 2 tomos")
 	local migrated = req(Server.Save.Profile).migrate({ v = 0, Silver = 7 })
 	check(migrated.Silver == 7 and migrated.Settings ~= nil and migrated.Shop ~= nil, "la migración conserva el progreso y rellena campos nuevos")
+end
+
+print("== Clasificación")
+do
+	local Leaderboard = req(Server.Save.Leaderboard)
+	check(Net.get("GetLeaderboard"):IsA("RemoteFunction"), "existe la RemoteFunction GetLeaderboard")
+	local ana = Harness.addPlayer(7001)
+	local beto = Harness.addPlayer(7002)
+	local caro = Harness.addPlayer(7003)
+	Leaderboard.submit(ana, 120, "Fox")
+	Leaderboard.submit(beto, 300, "Calcium")
+	Leaderboard.submit(caro, 50, "SirOofie")
+	Leaderboard.submit(ana, 80, "Calcium") -- peor que la anterior: no debe bajar la marca
+	Leaderboard.submit(caro, 200.7, "Fox") -- mejora (se redondea hacia abajo)
+	Leaderboard.submit(caro, -5, "Fox")
+	Leaderboard.submit(caro, 0 / 0, "Fox")
+	Leaderboard.submit(caro, "999", "Fox")
+
+	local board = Leaderboard.get(ana, "global")
+	local entries = board.entries
+	check(board.scope == "global" and #entries == 3, string.format("global: %d entradas", #entries))
+	check(entries[1].userId == 7002 and entries[2].userId == 7003 and entries[3].userId == 7001, "orden por bajas de mayor a menor")
+	check(entries[1].rank == 1 and entries[2].rank == 2 and entries[3].rank == 3, "rangos consecutivos")
+	check(entries[1].name == beto.Name and entries[1].kills == 300 and entries[1].character == "Calcium", "nombre, bajas y personaje de cada entrada")
+	check(entries[2].kills == 200 and entries[2].character == "Fox", "una marca mejor sustituye a la anterior (y su personaje)")
+	check(entries[3].kills == 120 and entries[3].character == "Fox", "una marca peor no baja la mejor ni cambia el personaje")
+	local me = board.me
+	check(me.userId == 7001 and me.name == ana.Name and me.rank == 3 and me.kills == 120 and me.character == "Fox", "campo me del jugador local")
+	check(board.resetsIn >= 0 and board.resetsIn <= 604800, string.format("reinicio en %d s", board.resetsIn))
+	local utc = os.date("!*t", os.time())
+	local sinceMonday = ((utc.wday + 5) % 7) * 86400 + utc.hour * 3600 + utc.min * 60 + utc.sec
+	check(math.abs(604800 - sinceMonday - board.resetsIn) <= 2, "la semana se reinicia el lunes a las 00:00 UTC")
+	check(board.persistent == false, "sin DataStore la clasificación es temporal (persistent = false)")
+	check(Harness.validatePayload(board, "GetLeaderboard") == nil, "la respuesta global es serializable")
+
+	local friends = Leaderboard.get(beto, "friends")
+	check(friends.scope == "friends" and #friends.entries == 1 and friends.entries[1].userId == 7002, "amigos sin GetFriendsAsync: sólo el propio jugador")
+	check(friends.me.rank == 1 and friends.me.kills == 300, "rango del jugador entre sus amigos")
+	check(Harness.validatePayload(friends, "GetLeaderboard") == nil, "la respuesta de amigos es serializable")
+	check(Leaderboard.get(ana, "todos") == nil, "se rechaza un ámbito desconocido")
+
+	-- Una segunda petición en menos de 3 s devuelve la respuesta anterior
+	Leaderboard.submit(ana, 500, "Calcium")
+	local again = Leaderboard.get(ana, "global")
+	check(again.me.kills == 120 and #again.entries == 3, "límite de 1 petición cada 3 s por jugador y ámbito")
+
+	-- Más de 9 participantes y un jugador sin marca
+	local lowest
+	for i = 1, 10 do
+		local player = Harness.addPlayer(7100 + i)
+		lowest = lowest or player
+		Leaderboard.submit(player, 10 + i, "Fox")
+	end
+	local nobody = Harness.addPlayer(7200)
+	local full = Leaderboard.get(nobody, "global")
+	check(#full.entries == 9, string.format("máximo 9 entradas (%d)", #full.entries))
+	local sorted = true
+	for i, entry in full.entries do
+		if entry.rank ~= i or (i > 1 and entry.kills > full.entries[i - 1].kills) then
+			sorted = false
+		end
+	end
+	check(sorted, "entradas ordenadas con rango = posición")
+	check(full.entries[1].userId == 7001 and full.entries[1].kills == 500 and full.entries[1].character == "Calcium", "la nueva mejor marca encabeza la clasificación")
+	check(full.me.rank == nil and full.me.kills == 0 and full.me.userId == 7200, "jugador sin marca: rango desconocido y 0 bajas")
+	local last = Leaderboard.get(lowest, "global")
+	check(last.me.rank == 13 and last.me.kills == 11, string.format("rango fuera del top 9 (%s)", tostring(last.me.rank)))
+	check(Harness.validatePayload(full, "GetLeaderboard") == nil and Harness.validatePayload(last, "GetLeaderboard") == nil, "respuestas con top 9 serializables")
 end
 
 print("== Serialización de mensajes al cliente")

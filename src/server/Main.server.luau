@@ -17,6 +17,7 @@ local Server = script.Parent
 local Fx = require(Server.Combat.Fx)
 local Items = require(Server.Combat.Items)
 local SaveService = require(Server.Save.SaveService)
+local Leaderboard = require(Server.Save.Leaderboard)
 local RunSession = require(Server.Run.RunSession)
 
 Players.CharacterAutoLoads = false
@@ -66,6 +67,13 @@ Net.get("Purchase").OnServerInvoke = function(player, key)
 		task.defer(sendProfile, player)
 	end
 	return ok, message
+end
+
+Net.get("GetLeaderboard").OnServerInvoke = function(player, scope)
+	if scope ~= "global" and scope ~= "friends" then
+		return nil
+	end
+	return Leaderboard.get(player, scope)
 end
 
 Net.get("StartRun").OnServerEvent:Connect(function(player, request)
@@ -165,6 +173,8 @@ Players.PlayerRemoving:Connect(function(player)
 	if session then
 		session:quit()
 		sessions[player] = nil
+		-- La partida abandonada al salir también cuenta para la clasificación
+		task.spawn(Leaderboard.submit, player, session.kills, session.characterId)
 	end
 	SaveService.release(player)
 end)
@@ -181,6 +191,7 @@ RunService.Heartbeat:Connect(function(dt)
 			task.spawn(function()
 				SaveService.save(player)
 				sendProfile(player)
+				Leaderboard.submit(player, session.kills, session.characterId)
 			end)
 		end
 	end

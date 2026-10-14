@@ -26,6 +26,7 @@ Net.Unreliable = {
 Net.Functions = {
 	"GetProfile",
 	"Purchase",
+	"GetLeaderboard", -- cliente → servidor: scope ("global" | "friends") → clasificación semanal
 }
 
 local folder: Folder?
