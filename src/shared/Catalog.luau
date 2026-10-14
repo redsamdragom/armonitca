@@ -65,7 +65,7 @@ local function register(kind, list, price)
 		}
 	end
 end
-register("char", Characters, Config.ProvisionalPrices.Character)
+register("char", Characters, 0) -- los personajes no se compran: se desbloquean al cumplir su misión
 register("weapon", Weapons, Config.ProvisionalPrices.Weapon)
 register("tome", Tomes, Config.ProvisionalPrices.Tome)
 register("item", Items, Config.ProvisionalPrices.Item)

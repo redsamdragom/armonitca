@@ -25,4 +25,11 @@ function Unlock.pending(text: string)
 	return { kind = "pending", text = text }
 end
 
+-- Condición propia de la recreación en lugar de la de la referencia (que aún no se puede cumplir o
+-- se ha cambiado por decisión del proyecto). `reference` describe la original para la matriz.
+function Unlock.instead(reference: string, unlock)
+	unlock.reference = reference
+	return unlock
+end
+
 return Unlock

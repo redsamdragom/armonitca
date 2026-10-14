@@ -22,6 +22,7 @@ local Server = Harness.server
 local req = Harness.require
 
 local Catalog = req(S.Catalog)
+local Config = req(S.Config)
 local Net = req(S.Net)
 Net.setup()
 local Fx = req(Server.Combat.Fx)
@@ -63,10 +64,13 @@ local function newSession(characterId, opts)
 	local player = Harness.addPlayer(nextUserId)
 	nextUserId += 1
 	local profile = SaveService.load(player)
+	-- Con unlockAll se juega como en Studio con todo desbloqueado
 	Harness.isStudio = opts.unlockAll == true
+	Config.Debug.StudioUnlockAll = opts.unlockAll == true
 	local session = RunSession.new(player, profile, { character = characterId, map = opts.map or "Forest", tier = opts.tier or 1, seed = nextUserId * 101 })
 	session:start()
 	Harness.isStudio = false
+	Config.Debug.StudioUnlockAll = false
 	return session, player, profile
 end
 
@@ -277,15 +281,37 @@ print("== Progreso de la cuenta")
 do
 	local player = Harness.addPlayer(999)
 	local profile = SaveService.load(player)
-	check(profile:status("char:Fox") == "owned" and profile:status("char:SirOofie") == "owned", "Fox y Sir Oofie disponibles desde el inicio")
-	check(profile:status("char:Calcium") == "locked", "Calcium bloqueado al inicio")
-	profile:applyRun({ counters = { ["kills.enemy.Skeleton"] = 1000 }, maxes = {}, silver = 500, character = "Fox", minutes = 5 })
-	check(profile:status("char:Calcium") == "available", "Calcium pasa a disponible tras 1.000 esqueletos (sin comprar)")
-	local okBuy = SaveService.purchase(player, "char:Calcium")
-	check(okBuy and profile:status("char:Calcium") == "owned", "comprar Calcium con plata")
-	check(profile.data.Silver == 500 - Catalog.Content["char:Calcium"].price, "se descuenta el precio")
-	local okAgain = SaveService.purchase(player, "char:Calcium")
+	local starters = {}
+	for _, c in Catalog.Characters do
+		if profile:status("char:" .. c.id) == "owned" then
+			table.insert(starters, c.id)
+		end
+	end
+	check(table.concat(starters, ",") == "Fox,SirOofie,Calcium", "sólo Fox, Sir Oofie y Calcium al inicio (" .. table.concat(starters, ",") .. ")")
+	-- Todos los demás personajes se pueden conseguir jugando: misión rastreable y arma conseguible
+	for _, c in Catalog.Characters do
+		local content = Catalog.Content["char:" .. c.id]
+		local reachable = content.unlock.kind ~= "pending"
+		for _, required in content.requires or {} do
+			reachable = reachable and Catalog.Content[required].unlock.kind ~= "pending"
+		end
+		check(reachable, c.id .. " se puede desbloquear jugando")
+	end
+	-- Monke: la misión sola no basta; falta comprar su arma inicial. Con ambas se desbloquea solo.
+	profile:applyRun({ counters = { ["kills.enemy.Boar"] = 1500 }, maxes = {}, silver = 500, character = "Fox", minutes = 5 })
+	check(profile:status("char:Monke") == "locked", "Monke sigue bloqueado sin su arma (Bananarang)")
+	local unlocked = profile:applyRun({ counters = { chestsBought = 30 }, maxes = {}, silver = 0, character = "Fox", minutes = 1 })
+	check(profile:status("weapon:Bananarang") == "available", "Bananarang lista para comprar tras abrir 30 cofres")
+	local okBuy = SaveService.purchase(player, "weapon:Bananarang")
+	check(okBuy and profile:status("weapon:Bananarang") == "owned", "comprar Bananarang con plata")
+	check(profile.data.Silver == 500 - Catalog.Content["weapon:Bananarang"].price, "se descuenta el precio")
+	check(profile:status("char:Monke") == "owned", "Monke se desbloquea solo al tener misión y arma")
+	check(not SaveService.purchase(player, "char:Monke"), "los personajes no se compran")
+	local okAgain = SaveService.purchase(player, "weapon:Bananarang")
 	check(not okAgain, "no se puede comprar dos veces")
+	check(table.find(unlocked, "Bananarang") ~= nil, "la partida avisa del contenido recién conseguido")
+	profile:applyRun({ counters = { ["kills.enemy.Wisp"] = 2000 }, maxes = { ["tome.Precision"] = 10 }, silver = 0, character = "Fox", minutes = 1 })
+	check(profile:status("char:Bush") == "locked", "Bush necesita además comprar el Rifle de Francotirador")
 	local okSlot = SaveService.purchase(player, "shop:WeaponSlot3")
 	check(not okSlot, "la 3.ª ranura de arma exige 25 quests")
 	check(profile:weaponSlots() == 2 and profile:tomeSlots() == 2, "ranuras iniciales: 2 armas y 2 tomos")

@@ -17,25 +17,25 @@ En todos los casos, los modelos son reconstrucciones con primitivas: no hay mall
 |---|---|---|---|---|---|
 | Fox | Firestaff | RNG Blessing | Completado | Inicial: Disponible desde el inicio | Pasiva y valores documentados implementados |
 | Sir Oofie | Sword | Reinforced | Completado | Inicial: Disponible desde el inicio | Pasiva y valores documentados implementados |
-| Calcium | Bone | Speed Demon | Provisional | Rastreado: Matar 1.000 esqueletos | aceleración, velocidad extra y curva de daño |
+| Calcium | Bone | Speed Demon | Provisional | Inicial (provisional; referencia: matar 1.000 esqueletos): Disponible desde el inicio | aceleración, velocidad extra y curva de daño |
 | Megachad | Aura | Flex | Provisional | Rastreado: Subir Damage Tome al nivel 7 | duración, enfriamiento inicial y mínimo |
 | Ogre | Axe | Warrior | Completado | Rastreado: Matar 15.000 goblins | Pasiva y valores documentados implementados |
 | CL4NK | Revolver | Crit Happens | Completado | Rastreado: Completar Forest Tier 1 | Pasiva y valores documentados implementados |
 | Athena | Aegis | Lock in | Provisional | Rastreado: Subir Thorns Tome al nivel 9 | curva de daño por vida baja |
 | Robinette | Bow | Stonks | Provisional | Rastreado: Completar Forest Tier 2 | umbrales de los tramos de oro |
-| Monke | Bananarang | Monke Grip | Provisional | Pendiente (no rastreable): Encontrar la Gold Key y abrir la jaula de Forest (secreto aún no implementado) | coeficientes de movimiento |
-| Tony McZoom | Wireless Dagger | Zap | Provisional | Rastreado: Completar 2 Challenges | distancia por carga, radio, daño |
-| Bush | Sniper Rifle | Bullseye | Provisional | Pendiente (no rastreable): Encontrar y derrotar a Bush en Forest (encuentro aún no implementado) | frecuencia de marcado y daño de la explosión |
-| Birdo | Tornado | Float | Provisional | Rastreado: En Desert, matar 100 enemigos con Tornado mientras un tornado te transporta | velocidad de planeo; coeficientes de movimiento |
+| Monke | Bananarang | Monke Grip | Provisional | Rastreado (provisional; referencia: encontrar la Gold Key y abrir la jaula de Forest (secreto aún no implementado)): Matar 1.500 jabalíes | coeficientes de movimiento |
+| Tony McZoom | Wireless Dagger | Zap | Provisional | Rastreado (provisional; referencia: completar 2 Challenges (aún no implementados)): Derrotar 2 minijefes | distancia por carga, radio, daño |
+| Bush | Sniper Rifle | Bullseye | Provisional | Rastreado (provisional; referencia: encontrar y derrotar a Bush en Forest (encuentro aún no implementado)): Matar 2.000 wisps | frecuencia de marcado y daño de la explosión |
+| Birdo | Tornado | Float | Provisional | Rastreado (provisional; referencia: 100 bajas con Tornado dentro de un tornado de Desert (tormentas aún no implementadas)): Matar 3.000 escorpiones | velocidad de planeo; coeficientes de movimiento |
 | Noelle | Frostwalker | Enduring | Completado | Rastreado: Duplicar Ice Crystal 3 veces seguidas con Microwave | Pasiva y valores documentados implementados |
 | Amog | Poison Flask | Plague | Provisional | Rastreado: Envenenar 50.000 enemigos con Moldy Cheese | orden de aplicación y multiplicación por tamaño |
-| Spaceman | Black Hole | Quantum XP Theory | Provisional | Rastreado: Completar 6 Challenges | coeficientes de movimiento |
-| Bandit | Dexecutioner | Flowstate | Completado | Pendiente (no rastreable): Encontrar y derrotar a Bandit en Desert (Desert aún no implementado) | Pasiva y valores documentados implementados |
+| Spaceman | Black Hole | Quantum XP Theory | Provisional | Rastreado (provisional; referencia: completar 6 Challenges (aún no implementados)): Derrotar 5 jefes finales | coeficientes de movimiento |
+| Bandit | Dexecutioner | Flowstate | Completado | Rastreado (provisional; referencia: encontrar y derrotar a Bandit en Desert (encuentro aún no implementado)): Matar 2.000 cactus | Pasiva y valores documentados implementados |
 | Ninja | Katana | Shadowstep | Provisional | Rastreado: Completar Desert Tier 1 | daño contra jefes |
 | Vlad | Blood Magic | Vampire | Completado | Rastreado: Completar Desert Tier 2 | Pasiva y valores documentados implementados |
 | Sir Chadwell | Corrupted Sword | Corrupted | Completado | Rastreado: Completar Forest Tier 3 | Pasiva y valores documentados implementados |
 | Dicehead | Dice | Gamba | Provisional | Rastreado: Completar 100 quests | fórmula de eficiencia y tabla de estadísticas |
-| Roberto | Scythe | Hoarder | Completado | Pendiente (no rastreable): Derrotar a Spooky Steve en Graveyard (Graveyard aún no implementado) | Pasiva y valores documentados implementados |
+| Roberto | Scythe | Hoarder | Completado | Rastreado (provisional; referencia: derrotar a Spooky Steve en Graveyard (aún no implementado)): Abrir 100 cofres | Pasiva y valores documentados implementados |
 
 ## Armas (30)
 
@@ -50,7 +50,7 @@ En todos los casos, los modelos son reconstrucciones con primitivas: no hay mall
 | Bow | Projectile | Provisional | Inicial: Disponible desde el inicio | estadísticas base provisionales |
 | Revolver | Projectile | Provisional | Rastreado: Matar 7.500 enemigos en total | estadísticas base provisionales |
 | Aegis | Aegis | Provisional | Rastreado: Mitigar 500 de daño con armadura jugando con Sir Oofie | estadísticas base provisionales |
-| Bananarang | Projectile | Provisional | Pendiente (no rastreable): Encontrar el plátano oculto en Forest (secreto aún no implementado) | estadísticas base provisionales |
+| Bananarang | Projectile | Provisional | Rastreado (provisional; referencia: el plátano oculto de Forest (secreto aún no implementado)): Abrir 30 cofres | estadísticas base provisionales |
 | Aura | Aura | Provisional | Rastreado: Pasar 2 minutos seguidos sin recibir daño | estadísticas base provisionales |
 | Axe | Projectile | Provisional | Rastreado: Matar 2.000 enemigos con Sword | estadísticas base provisionales; mejoras sin valor verificado: Damage, Count, Duration, Size |
 | Space Noodle | Beam | Provisional | Rastreado: Completar Desert Tier 2 con Tony McZoom | estadísticas base provisionales |
@@ -64,8 +64,8 @@ En todos los casos, los modelos son reconstrucciones con primitivas: no hay mall
 | Dexecutioner | Projectile | Provisional | Rastreado: Matar 12.500 enemigos con Sword | estadísticas base provisionales |
 | Blood Magic | Strike | Provisional | Rastreado: Subir Bloody Tome al nivel 12 | estadísticas base provisionales |
 | Black Hole | Field | Provisional | Rastreado: Subir Knockback Tome al nivel 10 | estadísticas base provisionales |
-| Poison Flask | Projectile | Provisional | Pendiente (no rastreable): Derrotar 3 veces a Scorpionussy en Desert (Desert aún no implementado) | estadísticas base provisionales; confirmado: Velocidad inicial 16 (Spooky Update) |
-| Katana | Melee | Provisional | Pendiente (no rastreable): ~5% al romper un Tumbleweed de Desert Stage 1 (Desert aún no implementado) | estadísticas base provisionales |
+| Poison Flask | Projectile | Provisional | Rastreado: Derrotar 3 veces a Escorpionaza en Desert | estadísticas base provisionales; confirmado: Velocidad inicial 16 (Spooky Update) |
+| Katana | Melee | Provisional | Rastreado (provisional; referencia: ~5% al romper un Tumbleweed de Desert Stage 1 (aún no implementado)): Hacer 5.000 golpes críticos | estadísticas base provisionales |
 | Dragon's Breath | Cone | Provisional | Rastreado: Matar 1.000 Wisps con Fox en Desert | estadísticas base provisionales; mejoras sin valor verificado: Duration, Size; confirmado: Autoapunta, daño base 16, duración 1,5 s, mejora de daño +4 (Spooky Update) |
 | Dice | Projectile | Provisional | Rastreado: Subir Luck Tome al nivel 12 | estadísticas base provisionales |
 | Hero Sword | Melee | Provisional | Rastreado: Derrotar un Stage Boss sin recoger objetos ni powerups ni usar santuarios | estadísticas base provisionales |

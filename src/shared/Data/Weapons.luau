@@ -167,7 +167,8 @@ local Weapons = {
 		targeting = "nearest",
 		procCoef = 1,
 		color = { 250, 220, 50 },
-		unlock = Unlock.pending("Encontrar el plátano oculto en Forest (secreto aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("el plátano oculto de Forest (secreto aún no implementado)", Unlock.counter("chestsBought", 30, "Abrir 30 cofres")),
 	},
 	{
 		id = "Aura",
@@ -363,7 +364,7 @@ local Weapons = {
 		element = "Poison",
 		procCoef = 1,
 		color = { 140, 220, 60 },
-		unlock = Unlock.pending("Derrotar 3 veces a Scorpionussy en Desert (Desert aún no implementado)"),
+		unlock = Unlock.counter("kills.boss.Scorpionussy", 3, "Derrotar 3 veces a Escorpionaza en Desert"),
 	},
 	{
 		id = "Katana",
@@ -376,7 +377,8 @@ local Weapons = {
 		targeting = "nearest",
 		procCoef = 1,
 		color = { 240, 240, 255 },
-		unlock = Unlock.pending("~5% al romper un Tumbleweed de Desert Stage 1 (Desert aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("~5% al romper un Tumbleweed de Desert Stage 1 (aún no implementado)", Unlock.counter("crits", 5000, "Hacer 5.000 golpes críticos")),
 	},
 	{
 		id = "DragonsBreath",

@@ -70,7 +70,8 @@ local Characters = {
 		},
 		stats = { MoveSpeed = 0.2, PickupRange = 8, JumpHeight = 9 },
 		movement = { momentum = true },
-		unlock = Unlock.counter("kills.enemy.Skeleton", 1000, "Matar 1.000 esqueletos"),
+		-- Inicial por decisión del proyecto: se empieza con Fox, Sir Oofie y Calcium
+		unlock = Unlock.instead("matar 1.000 esqueletos", Unlock.start()),
 		look = "Esqueleto marfil con gafas de sol sobre un monopatín.",
 		costume = {
 			piece("Head", "Block", { 1.1, 0.25, 0.1 }, { 0, 0.15, -0.62 }, rgb(15, 15, 15)),
@@ -182,7 +183,8 @@ local Characters = {
 		passive = { name = "Monke Grip", desc = "Puede escalar paredes; +2 de vida máxima por nivel.", perLevel = { MaxHealth = 2 } },
 		stats = { MaxHealth = 135, JumpHeight = 9, Damage = 0.15 },
 		movement = { climb = true },
-		unlock = Unlock.pending("Encontrar la Gold Key y abrir la jaula de Forest (secreto aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("encontrar la Gold Key y abrir la jaula de Forest (secreto aún no implementado)", Unlock.counter("kills.enemy.Boar", 1500, "Matar 1.500 jabalíes")),
 		requires = { "weapon:Bananarang" },
 		look = "Simio marrón de hocico beige y gafas de sol.",
 		costume = {
@@ -205,7 +207,8 @@ local Characters = {
 		},
 		stats = {},
 		movement = { fallImmune = true },
-		unlock = Unlock.counter("challenges", 2, "Completar 2 Challenges"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("completar 2 Challenges (aún no implementados)", Unlock.counter("kills.enemy.Miniboss", 2, "Derrotar 2 minijefes")),
 		requires = { "weapon:WirelessDagger" },
 		look = "Capucha amarilla, rostro oscuro y tabla flotante.",
 		costume = {
@@ -226,7 +229,8 @@ local Characters = {
 		},
 		stats = { Evasion = shown(0.10), PickupRange = 11 },
 		movement = {},
-		unlock = Unlock.pending("Encontrar y derrotar a Bush en Forest (encuentro aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("encontrar y derrotar a Bush en Forest (encuentro aún no implementado)", Unlock.counter("kills.enemy.Wisp", 2000, "Matar 2.000 wisps")),
 		requires = { "weapon:SniperRifle" },
 		look = "Arbusto verde redondeado con dos ojos.",
 		costume = {
@@ -247,11 +251,8 @@ local Characters = {
 		},
 		stats = { MoveSpeed = 0.1, PickupRange = 10, JumpHeight = 9, ExtraJumps = 1 },
 		movement = { fallImmune = true, float = true },
-		unlock = Unlock.counter(
-			"kills.weapon.Tornado.inTornado",
-			100,
-			"En Desert, matar 100 enemigos con Tornado mientras un tornado te transporta"
-		),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("100 bajas con Tornado dentro de un tornado de Desert (tormentas aún no implementadas)", Unlock.counter("kills.enemy.Scorpion", 3000, "Matar 3.000 escorpiones")),
 		look = "Ave roja de plumaje en punta, pico amarillo y gafas azules.",
 		costume = {
 			piece("Head", "Block", { 1.3, 1.3, 1.3 }, { 0, 0, 0 }, rgb(210, 50, 40)),
@@ -312,7 +313,8 @@ local Characters = {
 		passive = { name = "Quantum XP Theory", desc = "+1,5% de experiencia por nivel.", perLevel = { XPGain = 0.015 } },
 		stats = { XPGain = 0.05 },
 		movement = { fallImmune = true, lowGravity = true },
-		unlock = Unlock.counter("challenges", 6, "Completar 6 Challenges"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("completar 6 Challenges (aún no implementados)", Unlock.counter("finalBossKills", 5, "Derrotar 5 jefes finales")),
 		requires = { "weapon:BlackHole" },
 		look = "Astronauta de traje blanco con visor dorado opaco.",
 		costume = {
@@ -327,7 +329,8 @@ local Characters = {
 		passive = { name = "Flowstate", desc = "+1% de velocidad de ataque por nivel.", perLevel = { AttackSpeed = 0.01 } },
 		stats = { Evasion = shown(0.10), MoveSpeed = 0.1, PickupRange = 9, JumpHeight = 8 },
 		movement = {},
-		unlock = Unlock.pending("Encontrar y derrotar a Bandit en Desert (Desert aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("encontrar y derrotar a Bandit en Desert (encuentro aún no implementado)", Unlock.counter("kills.enemy.Cactus", 2000, "Matar 2.000 cactus")),
 		requires = { "weapon:Dexecutioner" },
 		look = "Sombrero de ala ancha, antifaz negro y bigote.",
 		costume = {
@@ -421,7 +424,8 @@ local Characters = {
 		},
 		stats = {},
 		movement = {},
-		unlock = Unlock.pending("Derrotar a Spooky Steve en Graveyard (Graveyard aún no implementado)"),
+		-- [Provisional] sustituye a la condición de la referencia, que aún no se puede cumplir
+		unlock = Unlock.instead("derrotar a Spooky Steve en Graveyard (aún no implementado)", Unlock.counter("chestsBought", 100, "Abrir 100 cofres")),
 		look = "Fantasma de sábana blanca cónica, gafas negras, piernas y zapatos visibles.",
 		costume = {
 			piece("Root", "Wedge", { 3.2, 4.2, 3.2 }, { 0, 1.0, 0 }, rgb(245, 245, 245), nil, "Fabric"),

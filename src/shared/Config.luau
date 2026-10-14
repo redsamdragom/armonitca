@@ -100,7 +100,6 @@ Config.Status = {
 
 -- Precios en plata: la especificación no los documenta. Todos [Pendiente].
 Config.ProvisionalPrices = {
-	Character = 60,
 	Weapon = 30,
 	Tome = 25,
 	Item = 15,
@@ -112,8 +111,9 @@ Config.ProvisionalPrices = {
 }
 
 Config.Debug = {
-	-- Permite StartRun con contenido bloqueado en Studio para probar.
-	StudioUnlockAll = true,
+	-- true: en Studio todo el contenido aparece desbloqueado (para probar armas y personajes sin
+	-- jugar). Desactivado para ver la progresión real: se empieza con Fox, Sir Oofie y Calcium.
+	StudioUnlockAll = false,
 }
 
 return Config

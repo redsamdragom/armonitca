@@ -2,8 +2,8 @@
 -- tienda permanente y opciones. Separa estrictamente el progreso de la cuenta del de la partida.
 --
 -- Estados de contenido:
---   owned      disponible para jugar (inicial o comprado)
---   available  condición cumplida; falta comprarlo con plata
+--   owned      disponible para jugar (inicial, comprado o personaje con su misión cumplida)
+--   available  condición cumplida; falta comprarlo con plata (armas, tomos, objetos y mapas)
 --   locked     condición sin cumplir (o requisito de otro contenido sin comprar)
 
 local RunService = game:GetService("RunService")
@@ -148,6 +148,10 @@ function Profile:status(key: string): string
 			return "locked"
 		end
 	end
+	-- Los personajes no se compran: se desbloquean solos al cumplir su misión y tener su arma.
+	if content.kind == "char" then
+		return "owned"
+	end
 	return "available"
 end
 
@@ -251,7 +255,7 @@ function Profile:applyRun(run)
 
 	local unlocked = {}
 	for key, content in Catalog.Content do
-		if before[key] == "locked" and self:status(key) == "available" then
+		if before[key] == "locked" and self:status(key) ~= "locked" then
 			table.insert(unlocked, content.name)
 		end
 	end
@@ -264,6 +268,11 @@ function Profile:summary()
 	local content = {}
 	for key, entry in Catalog.Content do
 		local current, target = self:progress(entry.unlock)
+		local requires = {}
+		for _, required in entry.requires or {} do
+			local other = Catalog.Content[required]
+			table.insert(requires, { key = required, kind = other.kind, id = other.id, name = other.name, owned = self:status(required) == "owned" })
+		end
 		table.insert(content, {
 			key = key,
 			kind = entry.kind,
@@ -272,6 +281,9 @@ function Profile:summary()
 			status = self:status(key),
 			price = entry.price,
 			text = entry.unlock.text,
+			start = entry.unlock.kind == "start",
+			met = self:conditionMet(entry.unlock),
+			requires = requires,
 			pending = entry.unlock.kind == "pending",
 			current = current,
 			target = target,

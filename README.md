@@ -14,7 +14,10 @@ El estado de cada personaje, arma, tomo, objeto y mapa está en [docs/MATRIZ.md]
 - **Partida:** subida de nivel con 1 de 3 mejoras de rareza variable, más Refresh, Skip y Banish. La simulación se pausa de verdad y cada nivel se procesa por separado. Incluye cofres, Charge Shrine y Golden Charge Shrine, Greed, Boss Curse, Shrine of Succ, Microwave, Shady Guy, vasijas y powerups.
 - **Progresión de la partida:** minijefes, portal del jefe, salida a la siguiente etapa, jefe final por tier, Final Swarm con su propio reloj y pantalla de resultados con el daño por fuente.
 - **Mapas:** Forest y Desert, generados con semilla (terreno con colinas y mesetas, rampas, árboles o cactus, y ruinas).
-- **Progreso de la cuenta:** plata, desbloqueos por condición más compra (son estados distintos), ranuras de arma y tomo, tienda, contadores acumulados y por partida, y rangos.
+- **Progreso de la cuenta:** plata, desbloqueos, ranuras de arma y tomo, tienda, contadores acumulados y por partida, y rangos.
+  - **Personajes:** se empieza con Fox, Sir Oofie y Calcium. Cada uno de los demás se desbloquea solo al cumplir su misión (por ejemplo, «Derrotar 2 minijefes») y tener su arma inicial; no se compran.
+  - **Armas, tomos, objetos y mapas:** primero se cumple la condición y después se compran con plata (son estados distintos).
+  - Las misiones de la referencia que aún no se pueden cumplir (Challenges, secretos, Graveyard) se han cambiado por otras provisionales; la matriz indica cuáles.
 - **Guardado:** DataStore con versión de esquema, compras transaccionales y copia de seguridad.
 - **Interfaz en español:** menú (personaje con vista 3D giratoria, mapa y tier, desbloqueos, tienda, colección y opciones con teclas reasignables), HUD con minimapa y mapa completo, pausa con estadísticas e inventario, y números de daño.
 
@@ -52,7 +55,7 @@ El código vive como archivos `.luau` y se sincroniza con Roblox Studio usando [
    - **Security → Enable Studio Access to API Services**, para que se guarde el progreso.
    - **Places → Max Players = 1**: el juego es de un jugador.
 
-En Studio, `Config.Debug.StudioUnlockAll` desbloquea todo el contenido para poder probarlo. Desactívalo antes de publicar.
+Con `Config.Debug.StudioUnlockAll = true`, en Studio todo el contenido aparece desbloqueado para poder probarlo. Está desactivado para ver la progresión real; no lo actives en la versión publicada.
 
 ### Pruebas sin Studio
 

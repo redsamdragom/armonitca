@@ -477,7 +477,7 @@ do
 	check(hasText(screen, "SELECCIÓN DE PERSONAJE") and hasText(screen, "Zorro") and hasText(screen, "Bastón de Fuego") and hasText(screen, "Bendición de Suerte"), "textos en español de la ficha de Zorro")
 	check(hasText(screen, "CONFIRMAR") and hasText(screen, "Sin sombrero") and hasText(screen, "Skin"), "CONFIRMAR, sombrero y skins")
 	local locked = find(screen, function(d)
-		return d:IsA("GuiButton") and d.Name == "Calcium"
+		return d:IsA("GuiButton") and d.Name == "CL4NK"
 	end)
 	local silhouette = locked and find(locked, function(d)
 		local c = d:IsA("ViewportFrame") and d.ImageColor3
@@ -490,13 +490,41 @@ do
 	check(windows:GetChildren()[1]:FindFirstChild("HatList", true) ~= nil, "el botón de sombrero abre la lista")
 end
 
+print("== Desbloqueos")
+OPENERS.Unlocks()
+do
+	for _, tab in { "PERSONAJES", "ARMAS", "TOMOS", "OBJETOS", "SOMBREROS" } do
+		check(byText(tab) ~= nil, "pestaña " .. tab)
+	end
+	click(byText("PERSONAJES"), "PERSONAJES")
+	local screen = windows:GetChildren()[1]
+	local cells = 0
+	for _, c in ipairs(Catalog.Characters) do
+		if find(screen, function(d)
+			return d:IsA("GuiButton") and d.Name == c.id
+		end) then
+			cells += 1
+		end
+	end
+	check(cells == #Catalog.Characters, "la cuadrícula de desbloqueos muestra los 21 personajes")
+	click(windowButton(function(d)
+		return d.Name == "TonyMcZoom"
+	end), "Tony McVeloz")
+	screen = windows:GetChildren()[1]
+	check(hasText(screen, "Tony McVeloz") and hasText(screen, "Derrotar 2 minijefes") and hasText(screen, "Comprar: Arma - Daga Inalámbrica"), "ficha de Tony McVeloz con su misión y su arma")
+	click(windowButton(function(d)
+		return d.Name == "Close"
+	end), "X")
+	check(currentWindow() == nil, "la X cierra los desbloqueos")
+end
+
 print("== Ventanas")
 local silverBefore = profile.data.Silver
 crawl("Characters")
 crawl("Maps", function(b)
 	return b.Text == "JUGAR"
 end)
-for _, filter in { "Personajes", "Armas", "Tomos", "Objetos", "Mapas" } do
+for _, filter in { "PERSONAJES", "ARMAS", "TOMOS", "OBJETOS", "SOMBREROS" } do
 	crawl("Unlocks", nil, filter)
 end
 crawl("Missions")
@@ -976,15 +1004,31 @@ local function pushProfile()
 	frames(0.1)
 end
 pushProfile()
-crawl("Unlocks", nil, "Personajes")
+crawl("Unlocks", nil, "ARMAS")
+-- Revólver con su misión cumplida: se elige en la cuadrícula y se intenta comprar sin plata
+OPENERS.Unlocks()
+click(byText("ARMAS"), "ARMAS")
+click(windowButton(function(d)
+	return d.Name == "Revolver"
+end), "Revolver")
+click(windowButton(function(d)
+	return d.Name == "Buy"
+end), "COMPRAR Revolver")
+frames(0.1)
 check(profile.data.Silver == 0, "sin plata no se compra nada")
 check(hasText(root, "Plata insuficiente"), "aviso de plata insuficiente")
 -- Los mapas cuestan 0: la compra sale bien y después llega el perfil nuevo del servidor; el
 -- mensaje de la compra no debe quedar tapado por otro aviso
-OPENERS.Unlocks()
-click(byText("Mapas"), "Mapas")
+OPENERS.Characters()
+click(windowButton(function(d)
+	return d.Name == "Fox"
+end), "Fox")
+click(windowButton(function(d)
+	return d.Name == "Confirm"
+end), "CONFIRMAR")
+frames(0.1)
 local freeMap = windowButton(function(d)
-	return string.sub(d.Text, 1, 7) == "COMPRAR"
+	return d.Name == "Desert"
 end)
 check(freeMap ~= nil, "mapa listo para comprar")
 if freeMap then
@@ -1006,6 +1050,8 @@ for _, name in { "Characters", "Settings", "Quit" } do
 	attempt("ventana " .. name .. " sin mando", OPENERS[name])
 end
 click(byText("VOLVER"), "VOLVER")
+-- El último perfil del servidor trae las opciones guardadas por las pruebas de Ajustes
+ClientState.settings.autoPick = false
 modal(levelUp)
 frames(0.4)
 click(cardsOf()[2], "carta 2 sin mando")
@@ -1013,8 +1059,9 @@ frames(0.1)
 check(GuiService.SelectedObject == nil and modalChoices[#modalChoices].index == 2, "sin mando no se fuerza ninguna selección")
 UserInputService._props.GamepadEnabled = true
 
--- Studio con todo desbloqueado: cualquier personaje, mapa y tier
+-- Studio con todo desbloqueado (opción de depuración): cualquier personaje, mapa y tier
 Harness.isStudio = true
+Config.Debug.StudioUnlockAll = true
 pushProfile()
 check(ClientState.profile.studioUnlockAll == true, "perfil de Studio con todo desbloqueado")
 crawl("Characters")
@@ -1047,6 +1094,7 @@ end), "Volver al menú")
 frames(0.5)
 check(menuGui.Enabled and home.Visible, "vuelta al menú tras la partida de Studio")
 Harness.isStudio = false
+Config.Debug.StudioUnlockAll = false
 noNewErrors(before, "casos límite sin errores")
 
 print("== Conexiones")

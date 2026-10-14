@@ -333,6 +333,25 @@ local function bolt(parent: GuiObject, anchor: Vector2, position: UDim2)
 	return b
 end
 
+-- Separador metálico a todo el ancho del marco, a `y` píxeles del borde superior del interior,
+-- con un perno en cada extremo.
+local function separatorAt(panel: Frame, inner: Frame, y: number)
+	local C = Theme.Colors
+	local separator = Theme.frame({ Name = "Separator", BackgroundColor3 = C.Outline, Position = UDim2.fromOffset(-FRAME, y), Size = UDim2.new(1, FRAME * 2, 0, SEPARATOR), ZIndex = 2, Parent = inner })
+	Theme.frame({ BackgroundColor3 = C.Metal, Position = UDim2.fromOffset(0, 1), Size = UDim2.new(1, 0, 0, 3), ZIndex = 2, Parent = separator })
+	Theme.frame({ BackgroundColor3 = C.MetalLight, Position = UDim2.fromOffset(0, 5), Size = UDim2.new(1, 0, 0, 3), ZIndex = 2, Parent = separator })
+	bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(0, 4, 0, FRAME + y + SEPARATOR / 2))
+	bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(1, -4, 0, FRAME + y + SEPARATOR / 2))
+	return separator
+end
+
+-- Divide el cuerpo de un panel con un separador como el de la cabecera. `y` se mide desde el
+-- borde superior del cuerpo; devuelve la altura que ocupa el separador.
+function Theme.divider(panel: Frame, body: Frame, y: number): number
+	separatorAt(panel, body.Parent :: Frame, body.Position.Y.Offset + y)
+	return SEPARATOR
+end
+
 function Theme.panel(props, title: string?, headerHeight: number?): (Frame, Frame, Frame?)
 	local C = Theme.Colors
 	local panel = Theme.frame({ BackgroundColor3 = C.MetalLight })
@@ -358,11 +377,7 @@ function Theme.panel(props, title: string?, headerHeight: number?): (Frame, Fram
 		local text = Theme.label({ Name = "Title", Text = title, TextSize = 30, Position = UDim2.fromOffset(16, 0), Size = UDim2.new(1, -32, 1, 0), Parent = header })
 		Theme.outlined(text, 2)
 		-- Separador a todo el ancho del marco: filo, banda media, filo, banda clara y filo
-		local separator = Theme.frame({ Name = "Separator", BackgroundColor3 = C.Outline, Position = UDim2.fromOffset(-FRAME, h), Size = UDim2.new(1, FRAME * 2, 0, SEPARATOR), Parent = inner })
-		Theme.frame({ BackgroundColor3 = C.Metal, Position = UDim2.fromOffset(0, 1), Size = UDim2.new(1, 0, 0, 3), Parent = separator })
-		Theme.frame({ BackgroundColor3 = C.MetalLight, Position = UDim2.fromOffset(0, 5), Size = UDim2.new(1, 0, 0, 3), Parent = separator })
-		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(0, 4, 0, FRAME + h + SEPARATOR / 2))
-		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(1, -4, 0, FRAME + h + SEPARATOR / 2))
+		separatorAt(panel, inner, h)
 		top = h + SEPARATOR
 	end
 	local body = Theme.frame({ Name = "Body", BackgroundTransparency = 1, Position = UDim2.fromOffset(0, top), Size = UDim2.new(1, 0, 1, -top), Parent = inner })

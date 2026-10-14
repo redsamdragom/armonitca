@@ -580,6 +580,9 @@ function RunSession:onEnemyKilled(enemy, info)
 	self:addCounter("kills.enemy." .. family, 1)
 	self:addCounter("kills.char." .. self.characterId, 1)
 	self:addCounter(string.format("kills.enemy.%s.char.%s.map.%s", family, self.characterId, self.map.id), 1)
+	if enemy.def.miniboss or enemy.def.boss then
+		self:addCounter("kills.boss." .. enemy.defId, 1)
+	end
 	local kind, id = string.match(source, "^(%a+):(.+)$")
 	if kind == "weapon" then
 		self:addCounter("kills.weapon." .. id, 1)

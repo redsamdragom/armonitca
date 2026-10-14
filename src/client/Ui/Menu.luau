@@ -42,7 +42,6 @@ local focus = Theme.focusGroup()
 local waitingRebind: string? = nil -- acción de Ajustes que espera una tecla nueva
 local selected = { character = "Fox", map = "Forest", tier = 1 }
 
-local STATUS_TEXT = { owned = "Disponible", available = "¡Listo para comprar!", locked = "Bloqueado" }
 local STATUS_COLOR = { owned = C.Good, available = C.Yellow, locked = C.Muted }
 
 local function outlined<T>(label: T, thickness: number?): T
@@ -719,6 +718,18 @@ local function hatName(hatId: string?): string
 	return "Sin sombrero"
 end
 
+-- Qué falta para desbloquear un personaje: su misión y, si no la tiene, comprar su arma inicial.
+local function lockedText(entry): string
+	local text = progressText(entry)
+	for _, required in (entry and entry.requires) or {} do
+		if not required.owned then
+			local isWeapon = required.kind == "weapon"
+			text ..= string.format("\nComprar: %s - %s", if isWeapon then "Arma" else required.kind, if isWeapon then Spanish.weaponName(required.id, required.name) else required.name)
+		end
+	end
+	return text
+end
+
 -- Personaje en 3D sobre la escena: de frente con un leve balanceo; se gira arrastrando.
 local function mountModel(content: Frame, id: string)
 	local viewport = Instance.new("ViewportFrame")
@@ -900,7 +911,7 @@ WINDOWS.Characters = {
 		local tagline = Spanish.Characters[id] and Spanish.Characters[id].tagline or character.look
 		outlined(Theme.label({
 			Name = "Tagline",
-			Text = if owned then tagline else progressText(entry),
+			Text = if owned then tagline else lockedText(entry),
 			TextSize = 23,
 			TextColor3 = if owned then Color3.fromRGB(225, 225, 220) else C.TextYellow,
 			TextWrapped = true,
@@ -1228,85 +1239,321 @@ WINDOWS.Maps = {
 }
 
 -- Desbloqueos -----------------------------------------------------------------------------------
+-- Panel centrado sobre la escena con la composición de la referencia: cabecera "DESBLOQUEOS" con la
+-- X roja, pestañas (Personajes, Armas, Tomos, Objetos, Sombreros), cuadrícula de 9 columnas con
+-- siluetas negras para lo bloqueado y, bajo un separador, la ficha del elemento elegido con sus
+-- requisitos marcados (misión con su progreso, arma necesaria y compra con plata).
+-- Medidas en píxeles de diseño (captura de 2000×1249 escalada a 1080 de alto).
 
-local unlockFilter = "char"
-local FILTERS = { { "char", "Personajes" }, { "weapon", "Armas" }, { "tome", "Tomos" }, { "item", "Objetos" }, { "map", "Mapas" } }
+local UNLOCK_TABS = {
+	{ kind = "char", text = "PERSONAJES" },
+	{ kind = "weapon", text = "ARMAS" },
+	{ kind = "tome", text = "TOMOS" },
+	{ kind = "item", text = "OBJETOS" },
+	{ kind = "hat", text = "SOMBREROS" },
+}
+local KIND_NAME = { weapon = "Arma", tome = "Tomo", item = "Objeto", char = "Personaje", map = "Mapa" }
+local unlockTab = "char"
+local unlockChoice: { [string]: string } = {}
+
+local TAB_STRIP = Color3.fromRGB(29, 35, 32)
+local TAB_ACTIVE = Color3.fromRGB(45, 55, 50)
+local REQUIREMENT_ROW = Color3.fromRGB(26, 31, 29)
+
+local function contentName(kind: string, id: string, fallback: string): string
+	if kind == "char" then
+		return characterName(id)
+	elseif kind == "weapon" then
+		return Spanish.weaponName(id, fallback)
+	end
+	return fallback
+end
+
+-- Elementos de una pestaña en el orden del catálogo: { key, kind, id, name, owned, available,
+-- requirements = { { text, done, current?, target? } }, price? }
+local function unlockEntries(kind: string)
+	local profile = ClientState.profile
+	local list = {}
+	if kind == "hat" then
+		local byId = {}
+		for _, c in (profile and profile.cosmetics) or {} do
+			byId[c.id] = c
+		end
+		for _, hat in Catalog.Cosmetics.Hats do
+			local c = byId[hat.id]
+			local owned = (profile and profile.studioUnlockAll) or (c ~= nil and c.met == true)
+			table.insert(list, {
+				key = "hat:" .. hat.id,
+				kind = "hat",
+				id = hat.id,
+				name = hat.name,
+				owned = owned,
+				requirements = {
+					{ text = hat.unlock.text, done = owned, pending = c and c.pending, current = c and c.current or 0, target = c and c.target or 0 },
+				},
+			})
+		end
+		return list
+	end
+	local byKey = {}
+	for _, entry in (profile and profile.content) or {} do
+		byKey[entry.key] = entry
+	end
+	local source = ({ char = Catalog.Characters, weapon = Catalog.Weapons, tome = Catalog.Tomes, item = Catalog.Items })[kind]
+	for _, data in ipairs(source) do
+		local key = kind .. ":" .. data.id
+		local entry = byKey[key]
+		local status = statusOf(key)
+		local owned = status == "owned"
+		local requirements = {}
+		if data.unlock.kind == "start" then
+			table.insert(requirements, { text = "Disponible desde el inicio", done = true })
+		else
+			table.insert(requirements, {
+				text = data.unlock.text,
+				done = owned or (entry ~= nil and entry.met == true),
+				pending = data.unlock.kind == "pending",
+				current = entry and entry.current or 0,
+				target = entry and entry.target or 0,
+			})
+			for _, required in (entry and entry.requires) or {} do
+				table.insert(requirements, {
+					text = string.format("Comprar: %s - %s", KIND_NAME[required.kind] or "", contentName(required.kind, required.id, required.name)),
+					done = owned or required.owned,
+				})
+			end
+			if kind ~= "char" and entry and entry.price > 0 then
+				table.insert(requirements, { text = string.format("Comprar con %d de plata", entry.price), done = owned, buy = status == "available" })
+			end
+		end
+		table.insert(list, {
+			key = key,
+			kind = kind,
+			id = data.id,
+			name = contentName(kind, data.id, data.name),
+			owned = owned,
+			available = status == "available",
+			price = entry and entry.price,
+			requirements = requirements,
+		})
+	end
+	return list
+end
+
+-- Icono de un elemento: retrato (personajes) o dibujo; lo bloqueado se ve como silueta oscura.
+local function unlockIcon(holder: GuiObject, e)
+	if e.kind == "char" then
+		portrait(holder, e.id, not e.owned)
+		return
+	end
+	local image = if e.kind == "weapon" then Images.get(Images.Weapons, e.id) elseif e.kind == "hat" then Images.get(Images.Hats, e.id) else nil
+	if image then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Image = image
+		img.ImageColor3 = if e.owned then WHITE else Color3.new(0, 0, 0)
+		img.Parent = holder
+		return
+	end
+	drawIcon(Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.78, 0.78), Parent = holder }), e.kind, e.id)
+	if not e.owned then
+		Theme.frame({ Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2, Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = holder })
+	end
+end
+
+-- Fila de requisito: casilla (marcada si se cumple), texto y, a la derecha, el progreso o la compra.
+local function requirementRow(parent: Instance, y: number, req, onBuy: () -> ()): (Frame, TextButton?)
+	local row = Theme.frame({ Name = "Requirement", BackgroundColor3 = REQUIREMENT_ROW, Position = UDim2.fromOffset(137, y), Size = UDim2.new(1, -159, 0, 28), Parent = parent })
+	local box = Theme.frame({ Name = "Check", BackgroundColor3 = Color3.fromRGB(16, 18, 17), Position = UDim2.fromOffset(2, 2), Size = UDim2.fromOffset(24, 24), Parent = row })
+	Theme.stroke(box, CELL_BORDER, 2)
+	if req.done then
+		outlined(Theme.label({ Name = "Tick", Text = "✓", FontFace = SANS, TextSize = 24, TextColor3 = C.Good, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), Parent = box }), 1.5)
+	end
+	local text = req.text .. (if req.pending and not req.done then " (aún no disponible)" else "")
+	outlined(Theme.label({ Text = text, TextSize = 24, TextColor3 = if req.pending and not req.done then C.Muted else WHITE, TextTruncate = Enum.TextTruncate.AtEnd, Position = UDim2.fromOffset(36, 0), Size = UDim2.new(1, -250, 1, 0), Parent = row }), 1.5)
+	if req.buy then
+		local b = Theme.button({
+			Name = "Buy",
+			Text = "COMPRAR",
+			TextSize = 22,
+			TextColor3 = C.Yellow,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -4, 0.5, 0),
+			Size = UDim2.fromOffset(170, 34),
+			ZIndex = 3,
+			Parent = row,
+		}, onBuy)
+		return row, b
+	end
+	if not req.done and not req.pending and (req.target or 0) > 0 then
+		local f = math.clamp(req.current / req.target, 0, 1)
+		outlined(Theme.label({
+			Text = string.format("%s / %s", Theme.formatNumber(math.floor(req.current)), Theme.formatNumber(req.target)),
+			FontFace = SANS,
+			TextSize = 22,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, 0, 0, -2),
+			Size = UDim2.fromOffset(198, 26),
+			Parent = row,
+		}), 1.5)
+		local bar = Theme.frame({ BackgroundColor3 = Color3.fromRGB(8, 9, 9), AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, 0, 1, 2), Size = UDim2.fromOffset(198, 5), Parent = row })
+		Theme.frame({ BackgroundColor3 = C.BarYellow, Size = UDim2.fromScale(f, 1), Parent = bar })
+	end
+	return row, nil
+end
 
 WINDOWS.Unlocks = {
 	title = "DESBLOQUEOS",
-	size = Vector2.new(1300, 820),
+	size = Vector2.new(0, 0),
+	fullscreen = true,
 	render = function(content)
-		local filters = Theme.frame({ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 50), Parent = content })
-		Theme.list(filters, Enum.FillDirection.Horizontal, 12)
-		local first
-		for i, f in FILTERS do
-			local active = unlockFilter == f[1]
-			local b = Theme.button({ Text = f[2], TextSize = 26, TextColor3 = if active then C.Yellow else WHITE, Size = UDim2.fromOffset(200, 50), LayoutOrder = i, Parent = filters }, function()
-				unlockFilter = f[1]
-				renderWindow("reset")
+		local panel, body, header = Theme.panel({
+			Name = "UnlocksPanel",
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(1078, 761),
+			Parent = content,
+		}, "DESBLOQUEOS", 56)
+		local headerBar = header :: Frame
+		local title = headerBar:FindFirstChild("Title") :: TextLabel
+		title.TextSize = 34
+		title.Position = UDim2.fromOffset(28, 0)
+		local close = Instance.new("TextButton")
+		close.Name = "Close"
+		close.Text = "X"
+		close.FontFace = SANS
+		close.TextSize = 40
+		close.TextColor3 = Color3.fromRGB(235, 35, 35)
+		close.BackgroundTransparency = 1
+		close.AnchorPoint = Vector2.new(1, 0.5)
+		close.Position = UDim2.new(1, -14, 0.5, 0)
+		close.Size = UDim2.fromOffset(40, 40)
+		close.Parent = headerBar
+		outlined(close, 2)
+		close.Activated:Connect(goBack)
+
+		-- Pestañas
+		local strip = Theme.frame({ Name = "Tabs", BackgroundColor3 = TAB_STRIP, Size = UDim2.new(1, 0, 0, 54), Parent = body })
+		Theme.list(strip, Enum.FillDirection.Horizontal, 0)
+		local first: GuiObject? = nil
+		for i, tab in UNLOCK_TABS do
+			local active = tab.kind == unlockTab
+			local b = Instance.new("TextButton")
+			b.Name = "Tab" .. i
+			b.Text = tab.text
+			b.FontFace = Theme.FontFace
+			b.TextSize = 26
+			b.TextColor3 = WHITE
+			b.AutoButtonColor = false
+			b.BorderSizePixel = 0
+			b.BackgroundColor3 = TAB_ACTIVE
+			b.BackgroundTransparency = if active then 0 else 1
+			b.AutomaticSize = Enum.AutomaticSize.X
+			b.Size = UDim2.fromOffset(0, 54)
+			b.LayoutOrder = i
+			b.Parent = strip
+			Theme.outlined(b, 1.5)
+			local pad = Instance.new("UIPadding")
+			pad.PaddingLeft = UDim.new(0, 18)
+			pad.PaddingRight = UDim.new(0, 18)
+			pad.Parent = b
+			b.Activated:Connect(function()
+				if unlockTab ~= tab.kind then
+					unlockTab = tab.kind
+					renderWindow("reset")
+				end
 			end)
 			if active then
-				Theme.stroke(b, C.Yellow, 3)
 				first = b
 			end
 		end
-		local list = scrollList(content, { Position = UDim2.fromOffset(0, 66), Size = UDim2.new(1, 0, 1, -66) })
 
-		local profile = ClientState.profile
-		if not profile then
+		-- Cuadrícula
+		local GRID_TOP, GRID_H = 54, 485
+		local entries = unlockEntries(unlockTab)
+		local chosen = nil
+		for _, e in entries do
+			if e.key == unlockChoice[unlockTab] then
+				chosen = e
+			end
+		end
+		chosen = chosen or entries[1]
+		local grid = scrollList(body, { Position = UDim2.fromOffset(4, GRID_TOP + 2), Size = UDim2.new(1, -8, 0, GRID_H - 4) })
+		grid:FindFirstChildOfClass("UIListLayout"):Destroy()
+		local pad = grid:FindFirstChildOfClass("UIPadding") :: UIPadding
+		pad.PaddingLeft = UDim.new(0, 18)
+		pad.PaddingTop = UDim.new(0, 17)
+		pad.PaddingBottom = UDim.new(0, 17)
+		local layout = Instance.new("UIGridLayout")
+		layout.CellSize = UDim2.fromOffset(96, 96)
+		layout.CellPadding = UDim2.fromOffset(18, 18)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Parent = grid
+		local selectedCell: GuiObject? = nil
+		for i, e in entries do
+			local cell = Instance.new("TextButton")
+			cell.Name = e.id
+			cell.Text = ""
+			cell.AutoButtonColor = false
+			cell.BackgroundColor3 = if e.owned then PORTRAIT_BG else LOCKED_BG
+			cell.BorderSizePixel = 0
+			cell.LayoutOrder = i
+			cell.Parent = grid
+			Theme.stroke(cell, CELL_BORDER, 2)
+			cornerBolts(cell, 6)
+			unlockIcon(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(2, 2), Size = UDim2.new(1, -4, 1, -4), ClipsDescendants = true, Parent = cell }), e)
+			if e.available then
+				outlined(Theme.label({
+					Name = "Star",
+					Text = "★",
+					FontFace = SANS,
+					TextSize = 34,
+					TextColor3 = Color3.fromRGB(255, 220, 40),
+					TextXAlignment = Enum.TextXAlignment.Center,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.new(1, -6, 0, 6),
+					Size = UDim2.fromOffset(32, 32),
+					ZIndex = 7,
+					Parent = cell,
+				}), 2)
+			end
+			local brackets = Theme.brackets(cell, 12)
+			if chosen and e.key == chosen.key then
+				for _, b in brackets do
+					b.Visible = true
+				end
+				selectedCell = cell
+			end
+			cell.Activated:Connect(function()
+				if unlockChoice[unlockTab] ~= e.key then
+					unlockChoice[unlockTab] = e.key
+					renderWindow("refresh")
+				end
+			end)
+		end
+
+		-- Ficha del elemento elegido bajo el separador
+		local sep = Theme.divider(panel, body, GRID_TOP + GRID_H)
+		local detail = Theme.frame({ Name = "Detail", BackgroundTransparency = 1, Position = UDim2.fromOffset(0, GRID_TOP + GRID_H + sep), Size = UDim2.new(1, 0, 1, -(GRID_TOP + GRID_H + sep)), Parent = body })
+		if not chosen then
 			return first
 		end
-		local entries = {}
-		for _, entry in profile.content do
-			if entry.kind == unlockFilter then
-				table.insert(entries, entry)
+		local face = framedBox(detail, { Name = "Portrait", BackgroundColor3 = if chosen.owned then PORTRAIT_BG else LOCKED_BG, Position = UDim2.fromOffset(22, 15), Size = UDim2.fromOffset(102, 102), ClipsDescendants = true })
+		unlockIcon(face, chosen)
+		outlined(Theme.label({ Name = "Name", Text = chosen.name, TextSize = 32, Position = UDim2.fromOffset(137, 4), Size = UDim2.new(1, -160, 0, 38), TextTruncate = Enum.TextTruncate.AtEnd, Parent = detail }), 2)
+		-- Caben tres filas; con dos se separan como en la referencia
+		local step = if #chosen.requirements > 2 then 29 else 35
+		for i, req in chosen.requirements do
+			if i > 3 then
+				break
 			end
+			requirementRow(detail, 44 + (i - 1) * step, req, function()
+				buy(chosen.key)
+			end)
 		end
-		local order = { available = 1, locked = 2, owned = 3 }
-		table.sort(entries, function(a, b)
-			if order[a.status] ~= order[b.status] then
-				return order[a.status] < order[b.status]
-			end
-			return a.name < b.name
-		end)
-		for i, entry in entries do
-			local row = Theme.frame({ BackgroundColor3 = C.Row, Size = UDim2.new(1, -16, 0, 66), LayoutOrder = i, Parent = list })
-			Theme.corner(row, 3)
-			drawIcon(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(8, 7), Size = UDim2.fromOffset(52, 52), Parent = row }), entry.kind, entry.id)
-			local extra = ""
-			if entry.kind == "item" then
-				local item = Catalog.Item[entry.id]
-				extra = string.format("  <font color=\"#%s\">%s</font>", Theme.Rarity[item.rarity]:ToHex(), Theme.RarityName[item.rarity])
-			end
-			outlined(Theme.label({
-				Text = entry.name .. extra,
-				RichText = true,
-				TextSize = 26,
-				TextColor3 = if entry.status == "available" then C.Yellow else WHITE,
-				Position = UDim2.fromOffset(72, 4),
-				Size = UDim2.new(1, -320, 0, 32),
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Parent = row,
-			}), 1.5)
-			Theme.label({
-				Text = if entry.status == "owned" then "Disponible" else progressText(entry),
-				Font = Theme.FontBody,
-				TextSize = 15,
-				TextColor3 = C.Muted,
-				Position = UDim2.fromOffset(72, 37),
-				Size = UDim2.new(1, -320, 0, 22),
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Parent = row,
-			})
-			if entry.status == "available" then
-				buyButton(row, entry.price, function()
-					buy(entry.key)
-				end)
-			else
-				statusTag(row, STATUS_TEXT[entry.status], STATUS_COLOR[entry.status])
-			end
-		end
-		return first
+		return selectedCell or first
 	end,
 }
 

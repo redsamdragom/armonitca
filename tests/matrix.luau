@@ -70,7 +70,9 @@ local function add(line)
 end
 
 local function unlockState(unlock)
-	if unlock.kind == "start" then
+	if unlock.reference then
+		return (if unlock.kind == "start" then "Inicial" else "Rastreado") .. " (provisional; referencia: " .. unlock.reference .. ")"
+	elseif unlock.kind == "start" then
 		return "Inicial"
 	elseif unlock.kind == "pending" then
 		return "Pendiente (no rastreable)"
