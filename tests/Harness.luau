@@ -1,8 +1,13 @@
 --!nolint
--- Entorno simulado de Roblox para ejecutar el código del servidor con Lune, sin Studio.
+-- Entorno simulado de Roblox para ejecutar el código del juego con Lune, sin Studio.
 -- Implementa sólo lo que el juego usa: árbol de instancias genérico, señales, servicios,
 -- planificador de `task` con reloj simulado, Random determinista, suelo plano para raycasts
 -- y registro de los mensajes enviados al cliente (con validación de serialización).
+-- Con Harness.setupClient() carga también src/client y simula los servicios del cliente; el
+-- servidor y el cliente comparten el mismo árbol y los mensajes de red se entregan diferidos.
+-- En ese modo las instancias creadas por el juego se validan contra la base de datos de
+-- reflexión de @lune/roblox: propiedades inexistentes, de sólo lectura o con un tipo incorrecto
+-- fallan igual que en Roblox, y las propiedades sin asignar devuelven su valor por defecto.
 
 local fs = require("@lune/fs")
 local luau = require("@lune/luau")
@@ -30,6 +35,14 @@ function Signal:Connect(fn)
 	table.insert(self.handlers, c)
 	return c
 end
+function Signal:Once(fn)
+	local c
+	c = self:Connect(function(...)
+		c:Disconnect()
+		fn(...)
+	end)
+	return c
+end
 function Signal:Fire(...)
 	for _, c in table.clone(self.handlers) do
 		if c.Connected then
@@ -39,6 +52,12 @@ function Signal:Fire(...)
 end
 function Signal:Wait()
 	return nil
+end
+function Signal:DisconnectAll()
+	for _, c in self.handlers do
+		c.Connected = false
+	end
+	table.clear(self.handlers)
 end
 
 -- Planificador de task con reloj simulado ------------------------------------------------------
@@ -50,10 +69,17 @@ local function schedule(at, thread, ...)
 	table.insert(queue, { at = at, thread = thread, args = table.pack(...) })
 end
 
+-- Error en un hilo: sin manejador se propaga (pruebas del servidor); con Harness.onError se
+-- registra y la ejecución sigue, como en Roblox (un error en un hilo no detiene a los demás).
 local function resume(thread, ...)
 	local ok, err = coroutine.resume(thread, ...)
 	if not ok then
-		error(debug.traceback(thread, tostring(err)), 0)
+		local message = debug.traceback(thread, tostring(err))
+		if Harness.onError then
+			Harness.onError(message)
+		else
+			error(message, 0)
+		end
 	end
 end
 
@@ -78,6 +104,13 @@ function task.wait(t)
 	schedule(clock + (t or 0), thread)
 	coroutine.yield()
 	return t or 0
+end
+function task.cancel(thread)
+	for i = #queue, 1, -1 do
+		if queue[i].thread == thread then
+			table.remove(queue, i)
+		end
+	end
 end
 
 function Harness.advance(dt)
@@ -120,12 +153,134 @@ function Random:NextInteger(a, b)
 	return math.floor(a + (b - a + 1) * self:_next())
 end
 
+-- Reflexión de clases (base de datos de @lune/roblox) -------------------------------------------
+
+local db = roblox.getReflectionDatabase()
+local classes = {}
+local properties = {}
+local defaults = {}
+
+local function classOf(name)
+	local c = classes[name]
+	if c == nil then
+		local ok, result = pcall(function()
+			return db:GetClass(name)
+		end)
+		c = (ok and result) or false
+		classes[name] = c
+	end
+	return c or nil
+end
+
+-- Propiedad `prop` de la clase o de alguna superclase: { datatype, readable, writable } o nil.
+local function propertyOf(className, prop)
+	local byClass = properties[className]
+	if not byClass then
+		byClass = {}
+		properties[className] = byClass
+	end
+	local info = byClass[prop]
+	if info == nil then
+		info = false
+		local c = classOf(className)
+		while c do
+			local p = c.Properties[prop]
+			if p then
+				local access = p.Scriptability
+				info = {
+					datatype = p.Datatype,
+					readable = access ~= "None" and access ~= "Write",
+					writable = access ~= "None" and access ~= "Read",
+				}
+				break
+			end
+			c = c.Superclass and classOf(c.Superclass)
+		end
+		byClass[prop] = info
+	end
+	return info or nil
+end
+
+local function defaultOf(className, prop)
+	local list = defaults[className]
+	if list == nil then
+		local c = classOf(className)
+		list = c and c.DefaultProperties or false
+		defaults[className] = list
+	end
+	return list and list[prop]
+end
+
+local function inherits(className, target)
+	if className == target or target == "Instance" then
+		return true
+	end
+	local c = classOf(className)
+	while c and c.Superclass do
+		if c.Superclass == target then
+			return true
+		end
+		c = classOf(c.Superclass)
+	end
+	return false
+end
+
+local NUMBER_TYPES = { Float32 = true, Float64 = true, Int32 = true, Int64 = true }
+local VALUE_TYPES = {
+	UDim = true, UDim2 = true, Vector2 = true, Vector3 = true, CFrame = true, Color3 = true, Font = true,
+	NumberSequence = true, ColorSequence = true, NumberRange = true, Rect = true, BrickColor = true,
+}
+
+-- Devuelve la descripción del problema si `value` no puede asignarse a una propiedad del tipo dado.
+local function typeProblem(datatype, value, isInstance)
+	local t = typeof(value)
+	if datatype == "Ref" then
+		if value ~= nil and not isInstance(value) then
+			return "Instance expected, got " .. t
+		end
+	elseif datatype == "Bool" then
+		if t ~= "boolean" then
+			return "bool expected, got " .. t
+		end
+	elseif NUMBER_TYPES[datatype] then
+		if t ~= "number" then
+			return "number expected, got " .. t
+		end
+	elseif datatype == "String" or datatype == "ContentId" or datatype == "Content" then
+		if t ~= "string" and t ~= "number" then
+			return "string expected, got " .. t
+		end
+	elseif string.sub(datatype, 1, 5) == "Enum." then
+		if t == "EnumItem" then
+			if string.sub(tostring(value), 1, #datatype + 1) ~= datatype .. "." then
+				return datatype .. " expected, got " .. tostring(value)
+			end
+		elseif t ~= "number" and t ~= "string" then
+			return datatype .. " expected, got " .. t
+		end
+	elseif VALUE_TYPES[datatype] then
+		if t ~= datatype then
+			return datatype .. " expected, got " .. t
+		end
+	end
+	return nil
+end
+
 -- Instancias ------------------------------------------------------------------------------------
 
 local EVENTS = {
 	Triggered = true, OnServerEvent = true, OnClientEvent = true, Heartbeat = true, RenderStepped = true,
-	Changed = true, CharacterAdded = true, PlayerAdded = true, PlayerRemoving = true, Died = true,
-	StateChanged = true, Activated = true, JumpRequest = true, InputBegan = true,
+	Stepped = true, Changed = true, CharacterAdded = true, CharacterRemoving = true, PlayerAdded = true,
+	PlayerRemoving = true, Died = true, StateChanged = true, Activated = true, JumpRequest = true,
+	InputBegan = true, InputEnded = true, InputChanged = true, MouseEnter = true, MouseLeave = true,
+	MouseMoved = true, SelectionGained = true, SelectionLost = true, SelectionChanged = true,
+	MouseButton1Click = true, MouseButton1Down = true, MouseButton1Up = true, MouseButton2Click = true,
+	Destroying = true, ChildAdded = true, ChildRemoved = true, DescendantAdded = true,
+	DescendantRemoving = true, AncestryChanged = true, AttributeChanged = true, Focused = true,
+	FocusLost = true, Touched = true, TouchEnded = true, Completed = true, MoveToFinished = true,
+	Running = true, Jumping = true, HealthChanged = true, GamepadConnected = true,
+	GamepadDisconnected = true, LastInputTypeChanged = true, WindowFocused = true, WindowFocusReleased = true,
+	PromptShown = true, PromptHidden = true, TriggerEnded = true, PromptButtonHoldBegan = true,
 }
 local PART_CLASSES = { Part = true, WedgePart = true, BasePart = true, MeshPart = true, SpawnLocation = true }
 
@@ -133,13 +288,14 @@ local Methods = {}
 local instMeta = {}
 Harness.remoteLog = {}
 Harness.serializationErrors = {}
+Harness.strict = false
 
 local function isInstance(v)
 	return type(v) == "table" and getmetatable(v) == instMeta
 end
 
 local function new(className, props)
-	local self = setmetatable({ _class = className, _props = { Name = className, ClassName = className }, _children = {}, _attributes = {} }, instMeta)
+	local self = setmetatable({ _class = className, _props = { Name = className, ClassName = className }, _children = {}, _attributes = {}, _changed = {} }, instMeta)
 	if PART_CLASSES[className] then
 		self._props.CFrame = CF.identity
 		self._props.Size = V3.new(4, 1, 2)
@@ -153,20 +309,83 @@ local function new(className, props)
 	return self
 end
 
+local function isStrict(self)
+	return Harness.strict and rawget(self, "_strict") == true
+end
+
+local function memberError(self, key)
+	return string.format("%s is not a valid member of %s \"%s\"", tostring(key), rawget(self, "_class"), tostring(self._props.Name))
+end
+
+local function propertyChanged(self, key)
+	local s = rawget(self, "_changed")[key]
+	if s then
+		s:Fire()
+	end
+	local changed = rawget(self._props, "Changed")
+	if changed then
+		changed:Fire(key)
+	end
+end
+
 local function reparent(self, parent)
 	local old = self._props.Parent
+	if old == parent then
+		return
+	end
 	if old then
 		local children = old._children
 		local index = table.find(children, self)
 		if index then
 			table.remove(children, index)
 		end
+		local removed = rawget(old._props, "ChildRemoved")
+		if removed then
+			removed:Fire(self)
+		end
 	end
 	self._props.Parent = parent
 	if parent then
 		table.insert(parent._children, self)
+		local added = rawget(parent._props, "ChildAdded")
+		if added then
+			added:Fire(self)
+		end
 	end
+	propertyChanged(self, "Parent")
 end
+
+-- Tamaño absoluto aproximado: la pantalla mide lo que la cámara; el resto, según su Size y el padre.
+local function absoluteSize(self)
+	local class = rawget(self, "_class")
+	if class == "ScreenGui" then
+		local camera = Harness.workspace and Harness.workspace._props.CurrentCamera
+		return camera and camera._props.ViewportSize or roblox.Vector2.new(1920, 1080)
+	end
+	local parent = self._props.Parent
+	local base = if parent and inherits(parent._class, "GuiBase2d") then parent.AbsoluteSize else roblox.Vector2.zero
+	local size = self._props.Size
+	if typeof(size) ~= "UDim2" then
+		return roblox.Vector2.zero
+	end
+	return roblox.Vector2.new(base.X * size.X.Scale + size.X.Offset, base.Y * size.Y.Scale + size.Y.Offset)
+end
+
+local COMPUTED = {
+	AbsoluteSize = absoluteSize,
+	AbsolutePosition = function()
+		return roblox.Vector2.zero
+	end,
+	AbsoluteCanvasSize = function(self)
+		return absoluteSize(self)
+	end,
+	AbsoluteWindowSize = function(self)
+		return absoluteSize(self)
+	end,
+	TextBounds = function()
+		return roblox.Vector2.zero
+	end,
+}
 
 instMeta.__index = function(self, key)
 	local props = rawget(self, "_props")
@@ -177,6 +396,24 @@ instMeta.__index = function(self, key)
 	local m = Methods[key]
 	if m then
 		return m
+	end
+	local strict = isStrict(self)
+	local property = strict and propertyOf(rawget(self, "_class"), key)
+	if property then
+		if not property.readable then
+			error(string.format("%s cannot be read from %s", key, rawget(self, "_class")), 2)
+		end
+		local computed = COMPUTED[key]
+		if computed then
+			return computed(self)
+		end
+		if key == "Position" and props.CFrame then
+			return props.CFrame.Position
+		end
+		local d = defaultOf(rawget(self, "_class"), key)
+		if d ~= nil then
+			return d
+		end
 	end
 	for _, child in rawget(self, "_children") do
 		if child._props.Name == key then
@@ -191,24 +428,58 @@ instMeta.__index = function(self, key)
 	if key == "Position" and props.CFrame then
 		return props.CFrame.Position
 	end
+	if strict and not property and classOf(rawget(self, "_class")) then
+		error(memberError(self, key), 2)
+	end
 	return nil
 end
 
+local CALLBACKS = { OnServerInvoke = true, OnClientInvoke = true, OnInvoke = true }
+
 instMeta.__newindex = function(self, key, value)
+	local strict = isStrict(self)
 	if key == "Parent" then
+		if strict then
+			if self._props.Destroyed then
+				error(string.format("The Parent property of %s is locked, current parent: NULL, new parent %s", tostring(self), tostring(value)), 2)
+			end
+			if value ~= nil and not isInstance(value) then
+				error("Unable to assign property Parent. Instance expected, got " .. typeof(value), 2)
+			end
+		end
 		reparent(self, value)
 		return
 	end
-	if key == "Position" then
+	if CALLBACKS[key] then
+		self._props[key] = value
+		return
+	end
+	local class = rawget(self, "_class")
+	if strict then
+		local property = propertyOf(class, key)
+		if property then
+			if not property.writable then
+				error(string.format("Unable to assign property %s. Property is read only", key), 2)
+			end
+			local problem = typeProblem(property.datatype, value, isInstance)
+			if problem then
+				error(string.format("Unable to assign property %s. %s", key, problem), 2)
+			end
+		elseif classOf(class) then
+			error(memberError(self, key), 2)
+		end
+	end
+	if key == "Position" and (not strict or PART_CLASSES[class] or inherits(class, "BasePart")) then
 		local cf = self._props.CFrame or CF.identity
 		self._props.CFrame = CF.new(value) * cf.Rotation
+		propertyChanged(self, "CFrame")
 		return
 	end
-	if key == "OnServerInvoke" then
-		self._props.OnServerInvoke = value
-		return
-	end
+	local old = self._props[key]
 	self._props[key] = value
+	if old ~= value then
+		propertyChanged(self, key)
+	end
 end
 
 instMeta.__tostring = function(self)
@@ -216,10 +487,25 @@ instMeta.__tostring = function(self)
 end
 
 function Methods:Destroy()
+	local destroying = rawget(self._props, "Destroying")
+	if destroying then
+		destroying:Fire()
+	end
 	reparent(self, nil)
 	self._props.Destroyed = true
 	for _, child in table.clone(self._children) do
 		child:Destroy()
+	end
+	-- Como en Roblox, al destruir se desconectan todas las conexiones de la instancia
+	if Harness.strict then
+		for _, value in self._props do
+			if getmetatable(value) == Signal then
+				value:DisconnectAll()
+			end
+		end
+		for _, s in rawget(self, "_changed") do
+			s:DisconnectAll()
+		end
 	end
 end
 function Methods:ClearAllChildren()
@@ -227,10 +513,18 @@ function Methods:ClearAllChildren()
 		child:Destroy()
 	end
 end
-function Methods:FindFirstChild(name)
+function Methods:FindFirstChild(name, recursive)
 	for _, child in self._children do
 		if child._props.Name == name then
 			return child
+		end
+	end
+	if recursive then
+		for _, child in self._children do
+			local found = child:FindFirstChild(name, true)
+			if found then
+				return found
+			end
 		end
 	end
 	return nil
@@ -240,6 +534,32 @@ function Methods:FindFirstChildOfClass(className)
 		if child._class == className then
 			return child
 		end
+	end
+	return nil
+end
+function Methods:FindFirstChildWhichIsA(className, recursive)
+	for _, child in self._children do
+		if child:IsA(className) then
+			return child
+		end
+	end
+	if recursive then
+		for _, child in self._children do
+			local found = child:FindFirstChildWhichIsA(className, true)
+			if found then
+				return found
+			end
+		end
+	end
+	return nil
+end
+function Methods:FindFirstAncestor(name)
+	local p = self._props.Parent
+	while p do
+		if p._props.Name == name then
+			return p
+		end
+		p = p._props.Parent
 	end
 	return nil
 end
@@ -267,16 +587,50 @@ function Methods:IsA(className)
 	if className == "Instance" or className == self._class then
 		return true
 	end
-	if className == "BasePart" then
-		return PART_CLASSES[self._class] == true
+	if className == "BasePart" and PART_CLASSES[self._class] then
+		return true
+	end
+	return inherits(self._class, className)
+end
+function Methods:IsDescendantOf(ancestor)
+	local p = self._props.Parent
+	while p do
+		if p == ancestor then
+			return true
+		end
+		p = p._props.Parent
 	end
 	return false
+end
+function Methods:GetFullName()
+	local names = { self._props.Name }
+	local p = self._props.Parent
+	while p and p._class ~= "DataModel" do
+		table.insert(names, 1, p._props.Name)
+		p = p._props.Parent
+	end
+	return table.concat(names, ".")
+end
+function Methods:GetPropertyChangedSignal(name)
+	if isStrict(self) and not propertyOf(self._class, name) and classOf(self._class) then
+		error(memberError(self, name), 2)
+	end
+	local changed = rawget(self, "_changed")
+	local s = changed[name]
+	if not s then
+		s = Signal.new()
+		changed[name] = s
+	end
+	return s
 end
 function Methods:SetAttribute(name, value)
 	self._attributes[name] = value
 end
 function Methods:GetAttribute(name)
 	return self._attributes[name]
+end
+function Methods:GetAttributes()
+	return table.clone(self._attributes)
 end
 function Methods:GetPivot()
 	local primary = self._props.PrimaryPart or self:FindFirstChild("HumanoidRootPart")
@@ -299,6 +653,9 @@ function Methods:PivotTo(cf)
 end
 function Methods:TakeDamage(amount)
 	self.Health -= amount
+end
+function Methods:GetState()
+	return self._props.State or roblox.Enum.HumanoidStateType.Running
 end
 
 -- Comprobación de que una carga útil de red es serializable por Roblox
@@ -347,9 +704,7 @@ end
 
 Harness.validatePayload = validatePayload
 
-local function logRemote(self, direction, player, ...)
-	local name = self._props.Name
-	local args = table.pack(...)
+local function reportPayload(name, args)
 	for i = 1, args.n do
 		local err = validatePayload(args[i], name .. "[" .. i .. "]")
 		if err and not Harness.serializationErrors[err] then
@@ -357,6 +712,12 @@ local function logRemote(self, direction, player, ...)
 			print("  [serialización] " .. err)
 		end
 	end
+end
+
+local function logRemote(self, direction, player, ...)
+	local name = self._props.Name
+	local args = table.pack(...)
+	reportPayload(name, args)
 	local log = Harness.remoteLog[name]
 	if not log then
 		log = { count = 0 }
@@ -366,17 +727,74 @@ local function logRemote(self, direction, player, ...)
 	log.last = args
 end
 
+-- Copia de una carga útil como la que recibe el otro extremo (sin referencias compartidas).
+local function copyPayload(value, seen)
+	if type(value) ~= "table" or isInstance(value) then
+		return value
+	end
+	seen = seen or {}
+	if seen[value] then
+		return seen[value]
+	end
+	local out = {}
+	seen[value] = out
+	for k, v in value do
+		out[copyPayload(k, seen)] = copyPayload(v, seen)
+	end
+	return out
+end
+
+local function copyArgs(...)
+	local args = table.pack(...)
+	for i = 1, args.n do
+		args[i] = copyPayload(args[i])
+	end
+	return args
+end
+
+-- Entrega diferida de un mensaje de red (llega en el siguiente paso del planificador).
+local function deliver(signal, args)
+	task.defer(function()
+		signal:Fire(table.unpack(args, 1, args.n))
+	end)
+end
+
 function Methods:FireClient(player, ...)
 	logRemote(self, "client", player, ...)
+	if Harness.clientPlayer and player == Harness.clientPlayer then
+		deliver(self.OnClientEvent, copyArgs(...))
+	end
 end
 function Methods:FireAllClients(...)
 	logRemote(self, "all", nil, ...)
+	if Harness.clientPlayer then
+		deliver(self.OnClientEvent, copyArgs(...))
+	end
 end
 function Methods:FireServer(...)
+	if Harness.clientPlayer then
+		reportPayload(self._props.Name .. " (al servidor)", table.pack(...))
+		local args = copyArgs(...)
+		table.insert(args, 1, Harness.clientPlayer)
+		args.n += 1
+		deliver(self.OnServerEvent, args)
+		return
+	end
 	self.OnServerEvent:Fire(Harness.localPlayer, ...)
 end
 function Methods:InvokeServer(...)
-	return self._props.OnServerInvoke(Harness.localPlayer, ...)
+	local handler = self._props.OnServerInvoke
+	if not Harness.clientPlayer then
+		return handler(Harness.localPlayer, ...)
+	end
+	local name = self._props.Name
+	reportPayload(name .. " (al servidor)", table.pack(...))
+	assert(handler, "OnServerInvoke sin asignar en " .. name)
+	local args = copyArgs(...)
+	local results = table.pack(handler(Harness.clientPlayer, table.unpack(args, 1, args.n)))
+	reportPayload(name .. " (respuesta)", results)
+	local copied = copyArgs(table.unpack(results, 1, results.n))
+	return table.unpack(copied, 1, copied.n)
 end
 
 -- Mundo -----------------------------------------------------------------------------------------
@@ -428,7 +846,10 @@ end
 
 -- Servicios -------------------------------------------------------------------------------------
 
+local env
+
 function Harness.build(root)
+	Harness.root = root
 	local game = new("DataModel", { Name = "Game" })
 	local workspace = new("Workspace", { Name = "Workspace", Gravity = 196.2, Parent = game })
 	new("Terrain", { Name = "Terrain", Parent = workspace })
@@ -449,6 +870,9 @@ function Harness.build(root)
 	services.RunService.IsServer = function()
 		return true
 	end
+	services.RunService.IsClient = function()
+		return Harness.clientPlayer ~= nil
+	end
 	services.RunService.IsStudio = function()
 		return Harness.isStudio
 	end
@@ -467,6 +891,9 @@ function Harness.build(root)
 	services.Players.GetPlayers = function()
 		return table.clone(players)
 	end
+	services.Players.GetNameFromUserIdAsync = function(_, userId)
+		error("GetNameFromUserIdAsync no disponible en el arnés (" .. tostring(userId) .. ")")
+	end
 	Harness.players = players
 	game.GetService = function(_, name)
 		local s = services[name]
@@ -477,13 +904,14 @@ function Harness.build(root)
 
 	-- Árbol de scripts desde el sistema de archivos
 	local cache = {}
-	local env
+	local clientEnv
 	local function loadModule(node)
 		if cache[node] ~= nil then
 			return cache[node]
 		end
-		local source = fs.readFile(node._path)
-		local chunkEnv = setmetatable({ script = node }, { __index = env })
+		local source = rawget(node, "_source")
+		local base = if rawget(node, "_client") then clientEnv else env
+		local chunkEnv = setmetatable({ script = node }, { __index = base })
 		local chunk = luau.load(source, { debugName = node._path, environment = chunkEnv, injectGlobals = false })
 		local result = chunk()
 		cache[node] = result
@@ -493,11 +921,11 @@ function Harness.build(root)
 		assert(isInstance(node) and node._path, "require de algo que no es un ModuleScript: " .. tostring(node))
 		return loadModule(node)
 	end
-	local function tree(dir, parent)
+	local function tree(dir, parent, client)
 		for _, name in fs.readDir(dir) do
 			local path = dir .. "/" .. name
 			if fs.isDir(path) then
-				tree(path, new("Folder", { Name = name, Parent = parent }))
+				tree(path, new("Folder", { Name = name, Parent = parent }), client)
 			elseif string.sub(name, -5) == ".luau" then
 				local base = string.sub(name, 1, -6)
 				local class = "ModuleScript"
@@ -508,6 +936,12 @@ function Harness.build(root)
 				end
 				local node = new(class, { Name = base, Parent = parent })
 				rawset(node, "_path", path)
+				-- Se lee aquí y no al requerirlo: en Lune, fs.readFile cede el hilo si se llama
+				-- desde una corrutina (los scripts del cliente arrancan en hilos de task.spawn).
+				rawset(node, "_source", fs.readFile(path))
+				if client then
+					rawset(node, "_client", true)
+				end
 			end
 		end
 	end
@@ -518,7 +952,14 @@ function Harness.build(root)
 
 	local Instance = {
 		new = function(className, parent)
+			if Harness.strict then
+				local c = classOf(className)
+				if c and (table.find(c.Tags, "NotCreatable") or table.find(c.Tags, "Service")) then
+					error("Unable to create an Instance of type \"" .. className .. "\"", 2)
+				end
+			end
 			local inst = new(className)
+			rawset(inst, "_strict", true)
 			if parent then
 				inst.Parent = parent
 			end
@@ -528,6 +969,11 @@ function Harness.build(root)
 	local RaycastParams = {
 		new = function()
 			return { FilterType = nil, FilterDescendantsInstances = {}, IgnoreWater = false }
+		end,
+	}
+	local TweenInfo = {
+		new = function(time, style, direction, repeatCount, reverses, delayTime)
+			return { Time = time or 1, EasingStyle = style, EasingDirection = direction, RepeatCount = repeatCount or 0, Reverses = reverses or false, DelayTime = delayTime or 0 }
 		end,
 	}
 	env = {
@@ -542,6 +988,16 @@ function Harness.build(root)
 		UDim = roblox.UDim,
 		UDim2 = roblox.UDim2,
 		Enum = roblox.Enum,
+		Font = roblox.Font,
+		NumberSequence = roblox.NumberSequence,
+		NumberSequenceKeypoint = roblox.NumberSequenceKeypoint,
+		ColorSequence = roblox.ColorSequence,
+		ColorSequenceKeypoint = roblox.ColorSequenceKeypoint,
+		NumberRange = roblox.NumberRange,
+		Rect = roblox.Rect,
+		BrickColor = roblox.BrickColor,
+		PhysicalProperties = roblox.PhysicalProperties,
+		TweenInfo = TweenInfo,
 		Random = Random,
 		RaycastParams = RaycastParams,
 		task = task,
@@ -565,16 +1021,26 @@ function Harness.build(root)
 	} do
 		env[name] = value
 	end
+	-- El cliente mide el tiempo con os.clock: en el arnés sigue al reloj simulado.
+	local clientOs = setmetatable({
+		clock = function()
+			return 100 + clock
+		end,
+	}, { __index = os })
+	clientEnv = setmetatable({ os = clientOs }, { __index = env })
+
 	Harness.services = services
 	Harness.shared = shared
 	Harness.server = server
 	Harness.require = customRequire
 	Harness.new = new
+	Harness.tree = tree
+	Harness.game = game
 	return Harness
 end
 
 function Harness.addPlayer(userId)
-	local player = new("Player", { Name = "Jugador" .. userId, UserId = userId })
+	local player = new("Player", { Name = "Jugador" .. userId, UserId = userId, DisplayName = "Jugador" .. userId })
 	player.GetFriendsAsync = function()
 		error("Lista de amigos no disponible en el arnés")
 	end
@@ -583,10 +1049,152 @@ function Harness.addPlayer(userId)
 	return player
 end
 
+-- Cliente ---------------------------------------------------------------------------------------
+
+-- Prepara el lado del cliente: carga src/client en StarterPlayer.StarterPlayerScripts.Client,
+-- simula sus servicios y crea el jugador local. Activa la validación estricta de propiedades,
+-- la entrega diferida de mensajes de red y el registro de errores (Harness.errors).
+function Harness.setupClient(userId)
+	local services = Harness.services
+	local game = Harness.game
+	Harness.strict = true
+	Harness.errors = {}
+	Harness.onError = function(message)
+		table.insert(Harness.errors, message)
+		print("  [error] " .. message)
+	end
+
+	local function strict(inst)
+		rawset(inst, "_strict", true)
+		return inst
+	end
+
+	local starterPlayer = new("StarterPlayer", { Name = "StarterPlayer", Parent = game })
+	local scripts = new("StarterPlayerScripts", { Name = "StarterPlayerScripts", Parent = starterPlayer })
+	local client = new("Folder", { Name = "Client", Parent = scripts })
+	Harness.tree(Harness.root .. "/src/client", client, true)
+	Harness.client = client
+	services.StarterPlayer = starterPlayer
+
+	-- Entrada: mando conectado para recorrer también los caminos de selección con mando
+	local input = new("UserInputService", { Name = "UserInputService" })
+	input._props.GamepadEnabled = true
+	input._props.KeyboardEnabled = true
+	input._props.MouseEnabled = true
+	input._props.TouchEnabled = false
+	input.GetMouseLocation = function()
+		return roblox.Vector2.new(960, 540)
+	end
+	services.UserInputService = strict(input)
+
+	local guiService = new("GuiService", { Name = "GuiService" })
+	guiService.GetGuiInset = function()
+		return roblox.Vector2.new(0, 58), roblox.Vector2.zero
+	end
+	services.GuiService = strict(guiService)
+
+	local starterGui = new("StarterGui", { Name = "StarterGui", Parent = game })
+	Harness.coreGui = {}
+	starterGui.SetCoreGuiEnabled = function(_, coreType, enabled)
+		assert(typeof(coreType) == "EnumItem" and typeof(enabled) == "boolean", "SetCoreGuiEnabled: argumentos inválidos")
+		Harness.coreGui[coreType.Name] = enabled
+	end
+	starterGui.SetCore = function() end
+	services.StarterGui = strict(starterGui)
+
+	-- Las interpolaciones validan las propiedades al crearse y las aplican al terminar.
+	local tweenService = new("TweenService", { Name = "TweenService" })
+	tweenService.Create = function(_, instance, info, goals)
+		assert(isInstance(instance), "TweenService:Create: el primer argumento debe ser una Instance")
+		assert(type(info) == "table" and type(info.Time) == "number", "TweenService:Create: TweenInfo inválido")
+		for key, value in goals do
+			local property = isStrict(instance) and propertyOf(instance._class, key)
+			if isStrict(instance) and classOf(instance._class) then
+				assert(property, "TweenService:Create: " .. memberError(instance, key))
+				local problem = typeProblem(property.datatype, value, isInstance)
+				assert(not problem, "TweenService:Create: " .. key .. ": " .. tostring(problem))
+			end
+		end
+		local tween = { Completed = Signal.new(), PlaybackState = roblox.Enum.PlaybackState.Begin }
+		function tween:Play()
+			tween.PlaybackState = roblox.Enum.PlaybackState.Playing
+			task.delay(info.Time + (info.DelayTime or 0), function()
+				if tween.PlaybackState ~= roblox.Enum.PlaybackState.Playing then
+					return
+				end
+				for key, value in goals do
+					instance[key] = value
+				end
+				tween.PlaybackState = roblox.Enum.PlaybackState.Completed
+				tween.Completed:Fire(roblox.Enum.PlaybackState.Completed)
+			end)
+		end
+		function tween:Cancel()
+			tween.PlaybackState = roblox.Enum.PlaybackState.Cancelled
+		end
+		function tween:Pause()
+			tween.PlaybackState = roblox.Enum.PlaybackState.Paused
+		end
+		function tween:Destroy() end
+		return tween
+	end
+	services.TweenService = strict(tweenService)
+
+	services.SoundService = strict(new("SoundService", { Name = "SoundService", Parent = game }))
+	local textService = new("TextService", { Name = "TextService" })
+	textService.GetTextSize = function(_, text, size)
+		return roblox.Vector2.new(#tostring(text) * size * 0.5, size)
+	end
+	services.TextService = strict(textService)
+
+	-- Cámara y luz con los valores con los que arranca un lugar
+	local camera = Harness.workspace.Camera
+	camera._props.CameraType = roblox.Enum.CameraType.Custom
+	camera._props.CFrame = CF.new(0, 20, 20)
+	camera._props.FieldOfView = 70
+	camera._props.ViewportSize = roblox.Vector2.new(1920, 1080)
+	strict(camera)
+	local lighting = services.Lighting
+	lighting._props.ClockTime = 14
+	lighting._props.Brightness = 2
+	lighting._props.FogEnd = 100000
+	strict(lighting)
+
+	-- Jugador local
+	local player = Harness.addPlayer(userId)
+	new("PlayerGui", { Name = "PlayerGui", Parent = player })
+	new("PlayerScripts", { Name = "PlayerScripts", Parent = player })
+	Harness.kicked = nil
+	player.Kick = function(_, message)
+		Harness.kicked = message or ""
+	end
+	strict(player)
+	services.Players._props.LocalPlayer = player
+	Harness.thumbnailFailures = {}
+	services.Players.GetUserThumbnailAsync = function(_, id, thumbnailType, thumbnailSize)
+		assert(type(id) == "number", "GetUserThumbnailAsync: userId debe ser un número")
+		assert(typeof(thumbnailType) == "EnumItem" and typeof(thumbnailSize) == "EnumItem", "GetUserThumbnailAsync: tipo y tamaño deben ser Enum")
+		if Harness.thumbnailFailures[id] then
+			error("HTTP 400 (miniatura no disponible)")
+		end
+		return "rbxthumb://type=AvatarHeadShot&id=" .. id .. "&w=48&h=48", true
+	end
+	strict(services.Players)
+	Harness.clientPlayer = player
+	return player
+end
+
+-- Ejecuta un Script o LocalScript en su propio hilo (los errores van a Harness.onError).
+function Harness.run(node)
+	return task.spawn(Harness.require, node)
+end
+
 function Harness.clock()
 	return clock
 end
 
+Harness.Signal = Signal
+Harness.isInstance = isInstance
 Harness.isStudio = false
 
 return Harness
