@@ -243,6 +243,17 @@ local function bracket(parent: GuiObject, anchor: Vector2, position: UDim2, sx: 
 	return holder
 end
 
+-- Cuatro corchetes de esquina (ocultos) a `gap` píxeles por fuera de `parent`.
+function Theme.brackets(parent: GuiObject, gap: number): { Frame }
+	local gx, gy = gap, gap - 2
+	return {
+		bracket(parent, Vector2.new(1, 1), UDim2.new(0, -gx, 0, -gy), -1, -1),
+		bracket(parent, Vector2.new(0, 1), UDim2.new(1, gx, 0, -gy), 1, -1),
+		bracket(parent, Vector2.new(1, 0), UDim2.new(0, -gx, 1, gy), -1, 1),
+		bracket(parent, Vector2.new(0, 0), UDim2.new(1, gx, 1, gy), 1, 1),
+	}
+end
+
 -- Losa de piedra con corchetes de foco (los botones grandes del menú principal).
 -- El texto se dibuja en dos etiquetas hijas ("TextShadow" y "Label") centradas en la cara, sin el
 -- canto: sombra oscura desplazada, contorno grueso y degradado de blanco a gris claro. Text y
@@ -288,14 +299,7 @@ function Theme.stoneButton(props, onClick: (() -> ())?, group: FocusGroup?, styl
 		noSelection = Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1) })
 	end
 	b.SelectionImageObject = noSelection
-	local gx = style and style.gap or 12
-	local gy = gx - 2
-	local brackets = {
-		bracket(b, Vector2.new(1, 1), UDim2.new(0, -gx, 0, -gy), -1, -1),
-		bracket(b, Vector2.new(0, 1), UDim2.new(1, gx, 0, -gy), 1, -1),
-		bracket(b, Vector2.new(1, 0), UDim2.new(0, -gx, 1, gy), -1, 1),
-		bracket(b, Vector2.new(0, 0), UDim2.new(1, gx, 1, gy), 1, 1),
-	}
+	local brackets = Theme.brackets(b, style and style.gap or 12)
 	if group then
 		group.buttons[b] = brackets
 		b.MouseEnter:Connect(function()

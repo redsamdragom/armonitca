@@ -403,7 +403,10 @@ OPENERS.Maps = function()
 		return d.Name == "Fox"
 	end)
 	click(fox, "Fox")
-	click(byText("CONFIRMAR"), "CONFIRMAR")
+	-- El botón azul de la ficha (CONFIRMAR, COMPRAR o BLOQUEADO según el personaje)
+	click(windowButton(function(d)
+		return d.Name == "Confirm"
+	end), "CONFIRMAR")
 	frames(0.1)
 end
 
@@ -454,6 +457,37 @@ local function crawl(name, skip, opener)
 	print(string.format("     %s: %d botones pulsados", label, pressed))
 	noNewErrors(errorsBefore, "todos los botones de " .. label .. " sin errores")
 	return pressed
+end
+
+print("== Selección de personaje")
+OPENERS.Characters()
+do
+	local screen = windows:GetChildren()[1]
+	local cells = 0
+	for _, c in ipairs(Catalog.Characters) do
+		if find(screen, function(d)
+			return d:IsA("GuiButton") and d.Name == c.id
+		end) then
+			cells += 1
+		end
+	end
+	check(cells == #Catalog.Characters, string.format("la cuadrícula muestra los %d personajes", cells))
+	check(screen:FindFirstChild("Roster", true) ~= nil and screen:FindFirstChild("Info", true) ~= nil and screen:FindFirstChild("HatPanel", true) ~= nil, "paneles de cuadrícula, ficha y sombrero")
+	check(screen:FindFirstChild("Model", true) ~= nil, "personaje en 3D en el centro")
+	check(hasText(screen, "SELECCIÓN DE PERSONAJE") and hasText(screen, "Zorro") and hasText(screen, "Bastón de Fuego") and hasText(screen, "Bendición de Suerte"), "textos en español de la ficha de Zorro")
+	check(hasText(screen, "CONFIRMAR") and hasText(screen, "Sin sombrero") and hasText(screen, "Skin"), "CONFIRMAR, sombrero y skins")
+	local locked = find(screen, function(d)
+		return d:IsA("GuiButton") and d.Name == "Calcium"
+	end)
+	local silhouette = locked and find(locked, function(d)
+		local c = d:IsA("ViewportFrame") and d.ImageColor3
+		return c and c.R == 0 and c.G == 0 and c.B == 0
+	end)
+	check(silhouette ~= nil, "los personajes bloqueados se ven como silueta negra")
+	click(find(screen, function(d)
+		return d:IsA("GuiButton") and d.Name == "Hat"
+	end), "Sin sombrero")
+	check(windows:GetChildren()[1]:FindFirstChild("HatList", true) ~= nil, "el botón de sombrero abre la lista")
 end
 
 print("== Ventanas")
@@ -912,7 +946,11 @@ end
 check(currentWindow() ~= "Maps", "sin perfil no se puede pasar de personaje a mapa")
 ClientState.profile = savedProfile
 OPENERS.Characters()
-click(byText("VOLVER"), "VOLVER")
+-- La selección de personaje ocupa toda la pantalla y se cierra con la X de su panel
+click(windowButton(function(d)
+	return d.Name == "Close"
+end), "X")
+check(currentWindow() == nil, "la X cierra la selección de personaje")
 
 -- Todo listo para comprar y sin plata: las compras fallan con su mensaje
 local savedData = profile.data

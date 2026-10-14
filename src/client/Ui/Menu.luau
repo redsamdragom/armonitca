@@ -14,6 +14,8 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local ClientState = require(script.Parent.Parent.ClientState)
 local Theme = require(script.Parent.Theme)
 local Preview = require(script.Parent.Preview)
+local Spanish = require(ReplicatedStorage.Shared.Data.Spanish)
+local Images = require(ReplicatedStorage.Shared.Data.Images)
 
 local Menu = {}
 
@@ -402,15 +404,18 @@ end
 -- puede añadir botones a la derecha del pie (VOLVER va siempre a la izquierda). Devuelve el botón
 -- que debe seleccionar el mando al abrirla.
 
+-- Con fullscreen = true la ventana ocupa toda la pantalla sobre la escena (sin velo, panel ni pie):
+-- `render` recibe footer = nil y dibuja sus propios paneles y su botón de cierre.
 type WindowSpec = {
 	title: string,
 	size: Vector2,
 	back: string?,
-	render: (content: Frame, footer: Frame) -> GuiObject?,
+	fullscreen: boolean?,
+	render: (content: Frame, footer: Frame?) -> GuiObject?,
 }
 
 local WINDOWS: { [string]: WindowSpec } = {}
-local window: { name: string, panel: Frame, content: Frame, footer: Frame }? = nil
+local window: { name: string, panel: Frame, content: Frame, footer: Frame? }? = nil
 local openWindow: (name: string) -> ()
 local closeWindow: (select: boolean?) -> ()
 local renderWindow: (mode: string) -> ()
@@ -463,8 +468,11 @@ renderWindow = function(mode: string)
 	local oldList = w.content:FindFirstChild("List", true)
 	local saved = if oldList and oldList:IsA("ScrollingFrame") and mode == "refresh" then oldList.CanvasPosition else nil
 	w.content:ClearAllChildren()
-	w.footer:ClearAllChildren()
-	local back = Theme.stoneButton({ Name = "Back", Text = "VOLVER", TextSize = 32, Size = UDim2.fromOffset(200, 60), Parent = w.footer }, goBack, focus, { gap = 8 })
+	local back: GuiObject? = nil
+	if w.footer then
+		w.footer:ClearAllChildren()
+		back = Theme.stoneButton({ Name = "Back", Text = "VOLVER", TextSize = 32, Size = UDim2.fromOffset(200, 60), Parent = w.footer }, goBack, focus, { gap = 8 })
+	end
 	local first = spec.render(w.content, w.footer)
 	local newList = w.content:FindFirstChild("List", true)
 	if saved and newList and newList:IsA("ScrollingFrame") then
@@ -484,6 +492,13 @@ openWindow = function(name: string)
 		window.panel:Destroy()
 	end
 	home.Visible = false
+	if spec.fullscreen then
+		shade.Visible = false
+		local screen = Theme.frame({ Name = name, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = windowLayer })
+		window = { name = name, panel = screen, content = screen, footer = nil }
+		renderWindow("open")
+		return
+	end
 	shade.Visible = true
 	local panel, body = Theme.panel({
 		Name = name,
@@ -515,130 +530,564 @@ closeWindow = function(select: boolean?)
 	end
 end
 
--- Jugar: personaje ------------------------------------------------------------------------------
+-- Jugar: selección de personaje -----------------------------------------------------------------
+-- Pantalla completa sobre la escena, con la composición de la referencia: panel "SELECCIÓN DE
+-- PERSONAJE" a la izquierda (cuadrícula de 4 columnas con desplazamiento), el personaje en 3D en el
+-- centro, la ficha a la derecha (retrato, rango, partidas, frase, arma, pasiva, skins y CONFIRMAR) y
+-- el sombrero debajo. Medidas en píxeles de diseño (captura de 2000×1194 escalada a 1080 de alto).
 
-local function characterInfo(info: Frame, id: string)
-	info:ClearAllChildren()
-	Theme.list(info, nil, 8)
-	local character = Catalog.Character[id]
-	local weapon = Catalog.Weapon[character.weapon]
-	local status, entry = statusOf("char:" .. id)
-	local profile = ClientState.profile
-	local rank = profile and profile.ranks and profile.ranks[id]
-	local order = 0
-	local function line(props, thickness: number?): TextLabel
-		order += 1
-		local l = Theme.label(props)
-		l.LayoutOrder = order
-		l.Size = UDim2.new(1, 0, 0, 0)
-		l.AutomaticSize = Enum.AutomaticSize.Y
-		l.TextWrapped = true
-		if thickness then
-			Theme.outlined(l, thickness)
-		end
-		l.Parent = info
-		return l
-	end
-	line({ Text = character.name, TextSize = 42, TextColor3 = C.Yellow }, 2.5)
-	line({ Text = character.look, Font = Theme.FontBody, TextSize = 15, TextColor3 = C.Muted })
-	line({ Text = "ARMA INICIAL", TextSize = 20, TextColor3 = C.Muted }, 1.5)
-	order += 1
-	local weaponRow = Theme.frame({ BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 40), LayoutOrder = order, Parent = info })
-	drawSword(Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromOffset(40, 40), Parent = weaponRow }))
-	outlined(Theme.label({ Text = weapon.name, TextSize = 26, Position = UDim2.fromOffset(50, 0), Size = UDim2.new(1, -50, 1, 0), Parent = weaponRow }), 1.5)
-	line({ Text = "PASIVA · " .. character.passive.name, TextSize = 20, TextColor3 = C.Muted }, 1.5)
-	line({ Text = character.passive.desc, Font = Theme.FontBody, TextSize = 15 })
-	line({ Text = string.format("RANGO %d   ·   PARTIDAS %d", rank and rank.rank or 0, rank and rank.runs or 0), TextSize = 24 }, 1.5)
-	if status == "owned" then
-		line({ Text = "DISPONIBLE", TextSize = 28, TextColor3 = C.Good }, 2)
-	elseif status == "available" and entry then
-		line({ Text = "¡LISTO PARA COMPRAR!", TextSize = 28, TextColor3 = C.Yellow }, 2)
-		Theme.button({ Text = string.format("COMPRAR · %d PLATA", entry.price), TextSize = 24, TextColor3 = C.Yellow, Size = UDim2.new(1, 0, 0, 52), LayoutOrder = order + 1, Parent = info }, function()
-			buy("char:" .. id)
-		end)
-	else
-		line({ Text = "BLOQUEADO", TextSize = 28, TextColor3 = C.Muted }, 2)
-		line({ Text = progressText(entry), Font = Theme.FontBody, TextSize = 15, TextColor3 = C.Muted })
-		if entry and not entry.pending and (entry.target or 0) > 0 then
-			local f = math.clamp(entry.current / entry.target, 0, 1)
-			local bar = Theme.frame({ BackgroundColor3 = Color3.new(0, 0, 0), Size = UDim2.new(1, 0, 0, 8), LayoutOrder = order + 1, Parent = info })
-			Theme.frame({ BackgroundColor3 = if f >= 0.75 then C.BarGreen else C.BarYellow, Size = UDim2.fromScale(f, 1), Parent = bar })
-		end
+local PORTRAIT_BG = Color3.fromRGB(44, 50, 60)
+local LOCKED_BG = Color3.fromRGB(30, 31, 34)
+local CELL_BORDER = Color3.fromRGB(150, 146, 140)
+local CONFIRM_BLUE = Color3.fromRGB(52, 132, 214)
+local RANK_BLUE = Color3.fromRGB(60, 150, 235)
+
+-- Elecciones visuales del selector (las skins y los sombreros todavía no tienen modelos).
+local chosenSkin: { [string]: string } = {}
+local chosenHat: string? = nil
+local hatListOpen = false
+
+local function characterName(id: string): string
+	return Spanish.characterName(id, Catalog.Character[id].name)
+end
+
+-- Pernos pequeños en las cuatro esquinas de un marco.
+local function cornerBolts(frame: GuiObject, size: number)
+	for _, corner in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
+		local b = Theme.frame({
+			Name = "Bolt",
+			BackgroundColor3 = C.Bolt,
+			AnchorPoint = corner,
+			Position = UDim2.new(corner.X, if corner.X == 0 then 1 else -1, corner.Y, if corner.Y == 0 then 1 else -1),
+			Size = UDim2.fromOffset(size, size),
+			ZIndex = 6,
+			Parent = frame,
+		})
+		Theme.corner(b, 2)
+		Theme.stroke(b, C.Outline, 1)
 	end
 end
 
+-- Retrato del personaje: la imagen subida (Data/Images) o, si no hay, el busto del modelo.
+-- Bloqueado: silueta negra (la imagen de silueta o el retrato teñido de negro).
+local function portrait(holder: GuiObject, id: string, locked: boolean)
+	local image = Images.get(Images.Portraits, id)
+	if image then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.ScaleType = Enum.ScaleType.Crop
+		local silhouette = Images.get(Images.Silhouettes, id)
+		img.Image = if locked and silhouette then silhouette else image
+		if locked and not silhouette then
+			img.ImageColor3 = Color3.new(0, 0, 0)
+		end
+		img.Parent = holder
+		return
+	end
+	local viewport = characterIcon(holder, id)
+	if locked then
+		viewport.ImageColor3 = Color3.new(0, 0, 0)
+	end
+end
+
+-- Recuadro con borde metálico y pernos (retratos e iconos de la ficha).
+local function framedBox(parent: Instance, props): Frame
+	local box = Theme.frame({ BackgroundColor3 = PORTRAIT_BG })
+	for k, v in props do
+		(box :: any)[k] = v
+	end
+	Theme.stroke(box, CELL_BORDER, 2)
+	cornerBolts(box, 7)
+	box.Parent = parent
+	return box
+end
+
+-- Icono de arma sustituto: losa con el color del arma y una espada estilizada.
+local function weaponIcon(holder: GuiObject, weaponId: string)
+	local image = Images.get(Images.Weapons, weaponId)
+	if image then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Image = image
+		img.Parent = holder
+		return
+	end
+	local weapon = Catalog.Weapon[weaponId]
+	local color = Color3.fromRGB(weapon.color[1], weapon.color[2], weapon.color[3])
+	holder.BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.55)
+	drawSword(Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.8, 0.8), Parent = holder }))
+end
+
+-- Icono de pasiva sustituto: estrella verde sobre fondo oscuro.
+local function passiveIcon(holder: GuiObject, characterId: string)
+	local image = Images.get(Images.Passives, characterId)
+	if image then
+		local img = Instance.new("ImageLabel")
+		img.BackgroundTransparency = 1
+		img.Size = UDim2.fromScale(1, 1)
+		img.Image = image
+		img.Parent = holder
+		return
+	end
+	holder.BackgroundColor3 = Color3.fromRGB(40, 22, 40)
+	outlined(Theme.label({
+		Text = "★",
+		FontFace = SANS,
+		TextScaled = true,
+		TextColor3 = Color3.fromRGB(110, 220, 90),
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Size = UDim2.fromScale(1, 1),
+		Parent = holder,
+	}), 2)
+end
+
+-- Escudo pequeño del rango y figura corriendo de las partidas.
+local function rankIcon(holder: GuiObject)
+	edged(round(shape(holder, Color3.fromRGB(120, 150, 175), 0.5, 0.45, 0.8, 0.8, 1), 4), 2)
+	shape(holder, Color3.fromRGB(70, 95, 120), 0.5, 0.45, 0.12, 0.6, 2)
+	shape(holder, Color3.fromRGB(70, 95, 120), 0.5, 0.45, 0.6, 0.12, 2)
+end
+
+local function runsIcon(holder: GuiObject)
+	outlined(Theme.label({ Text = "🏃", FontFace = SANS, TextScaled = true, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), Parent = holder }), 1)
+end
+
+-- Rango y progreso hacia el siguiente (el rango sube cada 3 minutos jugados) [Pendiente: curva].
+local function rankOf(id: string): (number, number, number)
+	local profile = ClientState.profile
+	local r = profile and profile.ranks and profile.ranks[id]
+	if not r then
+		return 0, 0, 0
+	end
+	local minutes = r.minutes or 0
+	return r.rank or 0, r.runs or 0, if (r.rank or 0) >= 100 then 1 else (minutes % 3) / 3
+end
+
+local function skinsOf(id: string)
+	local list = {}
+	for _, skin in Catalog.Cosmetics.Skins do
+		if skin.character == id then
+			table.insert(list, skin)
+		end
+	end
+	return list
+end
+
+local function cosmeticMet(cosmeticId: string): boolean
+	local profile = ClientState.profile
+	if not profile then
+		return false
+	end
+	if profile.studioUnlockAll then
+		return true
+	end
+	for _, c in profile.cosmetics or {} do
+		if c.id == cosmeticId then
+			return c.met == true
+		end
+	end
+	return false
+end
+
+local function cosmeticText(cosmeticId: string): string
+	local profile = ClientState.profile
+	for _, c in (profile and profile.cosmetics) or {} do
+		if c.id == cosmeticId then
+			if c.pending then
+				return c.text .. " · [no rastreable aún]"
+			end
+			if (c.target or 0) > 0 then
+				return string.format("%s (%s / %s)", c.text, Theme.formatNumber(c.current or 0), Theme.formatNumber(c.target))
+			end
+			return c.text
+		end
+	end
+	return ""
+end
+
+local function hatName(hatId: string?): string
+	if not hatId then
+		return "Sin sombrero"
+	end
+	for _, hat in Catalog.Cosmetics.Hats do
+		if hat.id == hatId then
+			return hat.name
+		end
+	end
+	return "Sin sombrero"
+end
+
+-- Personaje en 3D sobre la escena: de frente con un leve balanceo; se gira arrastrando.
+local function mountModel(content: Frame, id: string)
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Model"
+	viewport.BackgroundTransparency = 1
+	viewport.AnchorPoint = Vector2.new(0.5, 0)
+	viewport.Position = UDim2.new(0.53, 0, 0, 380)
+	viewport.Size = UDim2.fromOffset(420, 560)
+	viewport.Ambient = Color3.fromRGB(150, 160, 170)
+	viewport.LightColor = Color3.fromRGB(255, 248, 235)
+	viewport.LightDirection = Vector3.new(-0.4, -0.7, -1)
+	viewport.Parent = content
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 32
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 3.4, -13.5), Vector3.new(0, 3, 0))
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	local model = Preview.build(id)
+	model.Parent = viewport
+
+	local yaw, drag, dragging = 0, 0, false
+	local t = 0
+	viewport.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+		end
+	end)
+	local ended = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+	local moved = UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			drag += input.Delta.X * 0.012
+		end
+	end)
+	local stepped
+	stepped = game:GetService("RunService").RenderStepped:Connect(function(dt)
+		if not viewport.Parent then
+			stepped:Disconnect()
+			ended:Disconnect()
+			moved:Disconnect()
+			return
+		end
+		t += dt
+		yaw = drag + math.sin(t * 0.8) * 0.12
+		model:PivotTo(CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi + yaw, 0))
+	end)
+	model:PivotTo(CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi, 0))
+end
+
 WINDOWS.Characters = {
-	title = "ELIGE PERSONAJE",
-	size = Vector2.new(1500, 820),
-	render = function(content, footer)
-		-- Cuadrícula de 7×3 con los 21 personajes, vista giratoria y ficha.
-		local grid = Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromOffset(828, 642), Parent = content })
-		local layout = Instance.new("UIGridLayout")
-		layout.CellSize = UDim2.fromOffset(108, 200)
-		layout.CellPadding = UDim2.fromOffset(12, 21)
-		layout.SortOrder = Enum.SortOrder.LayoutOrder
-		layout.Parent = grid
-
-		local viewport = Instance.new("ViewportFrame")
-		viewport.BackgroundColor3 = Color3.fromRGB(24, 30, 27)
-		viewport.Position = UDim2.fromOffset(848, 0)
-		viewport.Size = UDim2.fromOffset(280, 642)
-		viewport.Parent = content
-		Theme.corner(viewport, 6)
-		Theme.stroke(viewport, C.Metal, 2)
-		local setPreview = Preview.mount(viewport)
-		local info = Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(1148, 0), Size = UDim2.fromOffset(308, 642), Parent = content })
-
-		local cells: { [string]: TextButton } = {}
-		local confirm: TextButton
-		local function choose(id: string)
-			selected.character = id
-			for key, cell in cells do
-				Theme.stroke(cell, if key == id then C.Yellow else C.Outline, if key == id then 3 else 2)
-			end
-			setPreview(id)
-			characterInfo(info, id)
-			confirm.TextColor3 = if statusOf("char:" .. id) == "owned" then WHITE else C.Muted
-		end
-		for i, character in ipairs(Catalog.Characters) do
-			local status = statusOf("char:" .. character.id)
-			local cell = Theme.button({ Name = character.id, Text = "", LayoutOrder = i, Parent = grid }, function()
-				choose(character.id)
-			end, { edge = 5, radius = 4 })
-			local holder = Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(4, 6), Size = UDim2.new(1, -8, 1, -46), Parent = cell })
-			characterIcon(holder, character.id, true)
-			if status ~= "owned" then
-				local veil = Theme.frame({ BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45, Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = holder })
-				Theme.corner(veil, 4)
-				if status == "available" then
-					outlined(Theme.label({ Text = "¡COMPRAR!", TextSize = 20, TextColor3 = C.Yellow, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), Parent = veil }), 1.5)
-				else
-					drawLock(veil)
-				end
-			end
-			outlined(Theme.label({
-				Text = character.name,
-				TextSize = 19,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Position = UDim2.new(0, 2, 1, -38),
-				Size = UDim2.new(1, -4, 0, 26),
-				Parent = cell,
-			}), 1.5)
-			cells[character.id] = cell
-		end
-		confirm = footerButton(footer, "CONFIRMAR", function()
-			if statusOf("char:" .. selected.character) ~= "owned" then
-				setStatus("Ese personaje está bloqueado", C.Bad)
-				return
-			end
-			openWindow("Maps")
-		end)
+	title = "SELECCIÓN DE PERSONAJE",
+	size = Vector2.new(0, 0),
+	fullscreen = true,
+	render = function(content)
 		if not Catalog.Character[selected.character] then
 			selected.character = Catalog.Characters[1].id
 		end
-		choose(selected.character)
-		return cells[selected.character]
+		local id = selected.character
+		local character = Catalog.Character[id]
+		local status, entry = statusOf("char:" .. id)
+		local owned = status == "owned"
+
+		-- Izquierda: cuadrícula ----------------------------------------------------------------
+		local _, rosterBody, header = Theme.panel({
+			Name = "Roster",
+			Position = UDim2.fromOffset(59, 149),
+			Size = UDim2.fromOffset(613, 824),
+			Parent = content,
+		}, "SELECCIÓN DE PERSONAJE", 54)
+		local close = Instance.new("TextButton")
+		close.Name = "Close"
+		close.Text = "X"
+		close.FontFace = SANS
+		close.TextSize = 44
+		close.TextColor3 = Color3.fromRGB(235, 35, 35)
+		close.BackgroundTransparency = 1
+		close.AnchorPoint = Vector2.new(1, 0.5)
+		close.Position = UDim2.new(1, -8, 0.5, 0)
+		close.Size = UDim2.fromOffset(44, 44)
+		close.Parent = header
+		outlined(close, 2)
+		close.Activated:Connect(goBack)
+
+		local grid = scrollList(rosterBody, { Position = UDim2.fromOffset(10, 6), Size = UDim2.new(1, -18, 1, -12) })
+		grid:FindFirstChildOfClass("UIListLayout"):Destroy()
+		local pad = grid:FindFirstChildOfClass("UIPadding") :: UIPadding
+		pad.PaddingLeft = UDim.new(0, 26)
+		pad.PaddingTop = UDim.new(0, 26)
+		pad.PaddingBottom = UDim.new(0, 20)
+		local layout = Instance.new("UIGridLayout")
+		layout.CellSize = UDim2.fromOffset(127, 127)
+		layout.CellPadding = UDim2.fromOffset(13, 13)
+		layout.SortOrder = Enum.SortOrder.LayoutOrder
+		layout.Parent = grid
+
+		local selectedCell: TextButton? = nil
+		for i, c in ipairs(Catalog.Characters) do
+			local cStatus = statusOf("char:" .. c.id)
+			local cell = Instance.new("TextButton")
+			cell.Name = c.id
+			cell.Text = ""
+			cell.AutoButtonColor = false
+			cell.BackgroundColor3 = if cStatus == "owned" then PORTRAIT_BG else LOCKED_BG
+			cell.BorderSizePixel = 0
+			cell.LayoutOrder = i
+			cell.Parent = grid
+			Theme.stroke(cell, CELL_BORDER, 2)
+			cornerBolts(cell, 8)
+			local holder = Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 3), Size = UDim2.new(1, -6, 1, -30), ClipsDescendants = true, Parent = cell })
+			portrait(holder, c.id, cStatus ~= "owned")
+			local strip = Theme.frame({ BackgroundColor3 = Color3.fromRGB(38, 38, 40), Position = UDim2.new(0, 2, 1, -27), Size = UDim2.new(1, -4, 0, 25), ZIndex = 3, Parent = cell })
+			outlined(Theme.label({
+				Text = characterName(c.id),
+				TextSize = 22,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				Size = UDim2.fromScale(1, 1),
+				ZIndex = 4,
+				Parent = strip,
+			}), 1.5)
+			if cStatus == "available" then
+				-- Estrella: condición cumplida, listo para comprar
+				outlined(Theme.label({
+					Name = "Star",
+					Text = "★",
+					FontFace = SANS,
+					TextSize = 44,
+					TextColor3 = Color3.fromRGB(255, 220, 40),
+					TextXAlignment = Enum.TextXAlignment.Center,
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.new(1, -8, 0, 8),
+					Size = UDim2.fromOffset(40, 40),
+					ZIndex = 7,
+					Parent = cell,
+				}), 2)
+			end
+			local brackets = Theme.brackets(cell, 9)
+			if c.id == id then
+				for _, b in brackets do
+					b.Visible = true
+				end
+				selectedCell = cell
+			end
+			cell.Activated:Connect(function()
+				if selected.character ~= c.id then
+					selected.character = c.id
+					hatListOpen = false
+					renderWindow("refresh")
+				end
+			end)
+		end
+
+		-- Centro: personaje en 3D ---------------------------------------------------------------
+		mountModel(content, id)
+
+		-- Derecha: ficha --------------------------------------------------------------------------
+		local _, body = Theme.panel({
+			Name = "Info",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -54, 0, 206),
+			Size = UDim2.fromOffset(541, 712),
+			Parent = content,
+		})
+		local face = framedBox(body, { Name = "Portrait", Position = UDim2.fromOffset(19, 15), Size = UDim2.fromOffset(116, 116), ClipsDescendants = true })
+		portrait(face, id, not owned)
+		outlined(Theme.label({ Name = "Name", Text = characterName(id), TextSize = 36, Position = UDim2.fromOffset(152, 14), Size = UDim2.fromOffset(360, 42), Parent = body }), 2)
+
+		local rank, runs, progress = rankOf(id)
+		rankIcon(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(152, 62), Size = UDim2.fromOffset(28, 28), Parent = body }))
+		outlined(Theme.label({ Text = "Rango " .. rank, TextSize = 26, Position = UDim2.fromOffset(188, 60), Size = UDim2.fromOffset(300, 30), Parent = body }), 1.5)
+		local rankBar = Theme.frame({ BackgroundColor3 = Color3.fromRGB(10, 12, 14), Position = UDim2.fromOffset(152, 94), Size = UDim2.fromOffset(112, 5), Parent = body })
+		Theme.frame({ BackgroundColor3 = RANK_BLUE, Size = UDim2.fromScale(progress, 1), Parent = rankBar })
+		runsIcon(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(152, 104), Size = UDim2.fromOffset(28, 28), Parent = body }))
+		outlined(Theme.label({ Text = runs .. (if runs == 1 then " Carrera" else " Carreras"), TextSize = 26, Position = UDim2.fromOffset(188, 102), Size = UDim2.fromOffset(300, 30), Parent = body }), 1.5)
+
+		local tagline = Spanish.Characters[id] and Spanish.Characters[id].tagline or character.look
+		outlined(Theme.label({
+			Name = "Tagline",
+			Text = if owned then tagline else progressText(entry),
+			TextSize = 23,
+			TextColor3 = if owned then Color3.fromRGB(225, 225, 220) else C.TextYellow,
+			TextWrapped = true,
+			TextYAlignment = Enum.TextYAlignment.Top,
+			Position = UDim2.fromOffset(19, 152),
+			Size = UDim2.fromOffset(500, 80),
+			Parent = body,
+		}), 1.5)
+		if not owned and entry and not entry.pending and (entry.target or 0) > 0 then
+			local bar = Theme.frame({ BackgroundColor3 = Color3.fromRGB(10, 12, 14), Position = UDim2.fromOffset(19, 234), Size = UDim2.fromOffset(500, 7), Parent = body })
+			local f = math.clamp((entry.current or 0) / entry.target, 0, 1)
+			Theme.frame({ BackgroundColor3 = if f >= 0.75 then C.BarGreen else C.BarYellow, Size = UDim2.fromScale(f, 1), Parent = bar })
+		end
+
+		-- Arma inicial y pasiva
+		local weapon = Catalog.Weapon[character.weapon]
+		local rows = {
+			{ y = 262, icon = function(h) weaponIcon(h, character.weapon) end, name = Spanish.weaponName(weapon.id, weapon.name), desc = weapon.desc },
+			{ y = 360, icon = function(h) passiveIcon(h, id) end, name = Spanish.Characters[id] and Spanish.Characters[id].passive or character.passive.name, desc = character.passive.desc },
+		}
+		for _, row in rows do
+			local box = framedBox(body, { Position = UDim2.fromOffset(19, row.y), Size = UDim2.fromOffset(76, 76), ClipsDescendants = true })
+			row.icon(box)
+			outlined(Theme.label({ Text = row.name, TextSize = 30, TextColor3 = C.Yellow, Position = UDim2.fromOffset(110, row.y - 2), Size = UDim2.fromOffset(410, 36), Parent = body }), 1.5)
+			outlined(Theme.label({
+				Text = row.desc,
+				TextSize = 19,
+				TextWrapped = true,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				Position = UDim2.fromOffset(110, row.y + 36),
+				Size = UDim2.fromOffset(410, 46),
+				Parent = body,
+			}), 1)
+		end
+
+		-- Skins: la predeterminada y las documentadas del personaje (sólo visuales por ahora)
+		outlined(Theme.label({ Text = "Skin", TextSize = 30, TextColor3 = C.Yellow, Position = UDim2.fromOffset(19, 452), Size = UDim2.fromOffset(200, 36), Parent = body }), 1.5)
+		local skins = skinsOf(id)
+		local current = chosenSkin[id] or ""
+		local slots = { { id = "", name = "Predeterminada" } }
+		for _, skin in skins do
+			table.insert(slots, skin)
+		end
+		for i, skin in slots do
+			local met = skin.id == "" or cosmeticMet(skin.id)
+			local slot = Instance.new("TextButton")
+			slot.Name = "Skin" .. i
+			slot.Text = ""
+			slot.AutoButtonColor = met
+			slot.BackgroundColor3 = Color3.fromRGB(28, 28, 30)
+			slot.BorderSizePixel = 0
+			slot.Position = UDim2.fromOffset(19 + (i - 1) * 68, 492)
+			slot.Size = UDim2.fromOffset(60, 60)
+			slot.Parent = body
+			Theme.stroke(slot, if skin.id == current then C.Yellow else CELL_BORDER, if skin.id == current then 3 else 2)
+			if skin.id == "" then
+				-- Orbe bicolor de la skin por defecto
+				local orb = edged(round(shape(slot, Color3.fromRGB(235, 150, 40), 0.5, 0.5, 0.72, 0.72, 1)), 2)
+				local half = Theme.frame({ BackgroundColor3 = Color3.fromRGB(60, 140, 220), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromScale(0.5, 1), Parent = orb })
+				round(half)
+			elseif met then
+				local skinImage = Images.get(Images.Skins, skin.id)
+				if skinImage then
+					local img = Instance.new("ImageLabel")
+					img.BackgroundTransparency = 1
+					img.Size = UDim2.fromScale(1, 1)
+					img.Image = skinImage
+					img.Parent = slot
+				else
+					characterIcon(slot, id)
+				end
+			else
+				drawLock(slot).Size = UDim2.fromOffset(30, 36)
+			end
+			slot.Activated:Connect(function()
+				if met then
+					chosenSkin[id] = skin.id
+					setStatus(skin.name .. (if skin.id ~= "" then " · (vista previa pendiente de modelo)" else ""), C.Muted)
+					renderWindow("refresh")
+				else
+					setStatus(skin.name .. ": " .. cosmeticText(skin.id), C.Muted)
+				end
+			end)
+		end
+
+		-- CONFIRMAR (o comprar / bloqueado)
+		local confirmText, confirmColor = "CONFIRMAR", CONFIRM_BLUE
+		if status == "available" and entry then
+			confirmText, confirmColor = string.format("COMPRAR · %d", entry.price), Color3.fromRGB(196, 150, 30)
+		elseif not owned then
+			confirmText, confirmColor = "BLOQUEADO", Color3.fromRGB(70, 70, 74)
+		end
+		local confirm = Theme.button({
+			Name = "Confirm",
+			Text = confirmText,
+			TextSize = 34,
+			TextColor3 = WHITE,
+			BackgroundColor3 = confirmColor,
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.new(0.5, 0, 0, 618),
+			Size = UDim2.fromOffset(238, 66),
+			Parent = body,
+		}, function()
+			if owned then
+				openWindow("Maps")
+			elseif status == "available" then
+				buy("char:" .. id)
+			else
+				setStatus(characterName(id) .. ": " .. progressText(entry), C.Muted)
+			end
+		end, { edge = 6, radius = 6 })
+		Theme.outlined(confirm, 2)
+
+		-- Abajo a la derecha: sombrero ------------------------------------------------------------
+		local _, hatBody = Theme.panel({
+			Name = "HatPanel",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -90, 0, 941),
+			Size = UDim2.fromOffset(470, 98),
+			Parent = content,
+		})
+		local hatButton = Theme.stoneButton({
+			Name = "Hat",
+			Text = hatName(chosenHat),
+			TextSize = 28,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromOffset(250, 54),
+			Parent = hatBody,
+		}, function()
+			hatListOpen = not hatListOpen
+			renderWindow("refresh")
+		end, focus, { gap = 6 })
+		drawHat(Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, -3), Size = UDim2.fromOffset(32, 32), ZIndex = 4, Parent = hatButton }))
+		for _, name in { "TextShadow", "Label" } do
+			local text = hatButton:FindFirstChild(name) :: TextLabel?
+			if text then
+				text.Position += UDim2.fromOffset(20, 0)
+				text.Size -= UDim2.fromOffset(24, 0)
+			end
+		end
+
+		-- Lista de sombreros (generales y los propios del personaje) sobre el panel
+		if hatListOpen then
+			local options = { { id = nil, name = "Sin sombrero" } }
+			for _, hat in Catalog.Cosmetics.Hats do
+				if not hat.character or hat.character == id then
+					table.insert(options, hat)
+				end
+			end
+			local listPanel, listBody = Theme.panel({
+				Name = "HatList",
+				AnchorPoint = Vector2.new(1, 1),
+				Position = UDim2.new(1, -90, 0, 935),
+				Size = UDim2.fromOffset(470, 420),
+				ZIndex = 5,
+				Parent = content,
+			}, "SOMBRERO", 46)
+			local list = scrollList(listBody, { Position = UDim2.fromOffset(10, 8), Size = UDim2.new(1, -20, 1, -16) })
+			for i, hat in options do
+				local met = hat.id == nil or cosmeticMet(hat.id)
+				local b = Theme.button({
+					Name = "HatOption" .. i,
+					Text = (if met then "" else "🔒 ") .. hat.name,
+					TextSize = 22,
+					TextColor3 = if hat.id == chosenHat then C.Yellow elseif met then WHITE else C.Muted,
+					Size = UDim2.new(1, -12, 0, 44),
+					LayoutOrder = i,
+					Parent = list,
+				}, function()
+					if met then
+						chosenHat = hat.id
+						hatListOpen = false
+						setStatus(hat.name .. (if hat.id then " · (modelo pendiente)" else ""), C.Muted)
+						renderWindow("refresh")
+					else
+						setStatus(hat.name .. ": " .. cosmeticText(hat.id), C.Muted)
+					end
+				end)
+				b.TextXAlignment = Enum.TextXAlignment.Left
+				local pad = Instance.new("UIPadding")
+				pad.PaddingLeft = UDim.new(0, 12)
+				pad.Parent = b
+			end
+			listPanel.ZIndex = 5
+		end
+		return selectedCell or confirm
 	end,
 }
 

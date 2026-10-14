@@ -64,6 +64,16 @@ lune run tests/matrix     # regenera docs/MATRIZ.md
 
 `tests/Harness.luau` simula lo que el juego usa de Roblox: instancias, servicios, `task` con reloj simulado y suelo plano. En la prueba del cliente corren a la vez el servidor y el cliente reales; las propiedades de las instancias se validan con la base de datos de reflexión de Lune (miembros inexistentes, de sólo lectura o con un tipo incorrecto fallan como en Roblox) y los mensajes de red llegan diferidos y en orden. Las pruebas también comprueban que todo lo que se envía entre cliente y servidor sea serializable. GitHub Actions las ejecuta en cada push.
 
+## Imágenes de la interfaz
+
+Los retratos de los personajes, los iconos de armas, pasivas y skins, y las siluetas de los personajes bloqueados se configuran en `src/shared/Data/Images.luau`.
+
+1. En Roblox Studio abre **View → Asset Manager → Import** y sube el PNG (o súbelo en Creator Hub → Development Items → Decals).
+2. Copia el ID numérico de la imagen.
+3. Pégalo en el campo del personaje, por ejemplo `Fox = "rbxassetid://123456789"`.
+
+Mientras un campo esté vacío, el juego dibuja un sustituto: el busto del modelo del personaje o un icono hecho con primitivas. Los nombres y las frases en español están en `src/shared/Data/Spanish.luau`.
+
 ## Estructura
 
 ```text
