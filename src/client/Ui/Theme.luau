@@ -10,7 +10,7 @@ local Theme = {}
 Theme.Colors = {
 	Background = Color3.fromRGB(20, 26, 23),
 	Panel = Color3.fromRGB(38, 46, 41),
-	PanelLight = Color3.fromRGB(61, 61, 61), -- cara de las losas (Modal la usa para restaurar botones)
+	PanelLight = Color3.fromRGB(77, 77, 77), -- cara de las losas (Modal la usa para restaurar botones)
 	Accent = Color3.fromRGB(255, 213, 74),
 	Text = Color3.fromRGB(245, 245, 240),
 	Muted = Color3.fromRGB(165, 170, 165),
@@ -29,14 +29,17 @@ Theme.Colors = {
 	TextYellow = Color3.fromRGB(245, 245, 140),
 	Card = Color3.fromRGB(36, 59, 70),
 	CardBorder = Color3.fromRGB(224, 225, 215),
-	Stone = Color3.fromRGB(61, 61, 61), -- cara de la losa; el canto y el borde claro salen de ella
+	Stone = Color3.fromRGB(77, 77, 77), -- cara de la losa; el canto y el borde claro salen de ella
+	StoneFocus = Color3.fromRGB(61, 61, 61), -- cara de la losa enfocada (la de los corchetes)
 	Outline = Color3.fromRGB(11, 13, 15),
 	Header = Color3.fromRGB(42, 74, 61),
 	TabOff = Color3.fromRGB(28, 34, 27),
 	Row = Color3.fromRGB(61, 69, 78),
 	Me = Color3.fromRGB(48, 91, 122),
 	MeRank = Color3.fromRGB(64, 100, 131),
-	Metal = Color3.fromRGB(118, 112, 108),
+	Metal = Color3.fromRGB(113, 108, 107), -- banda media del marco metálico
+	MetalLight = Color3.fromRGB(180, 178, 165), -- banda clara exterior del marco
+	MetalTop = Color3.fromRGB(245, 246, 236), -- la banda clara, arriba, donde le da la luz
 	Bolt = Color3.fromRGB(180, 177, 171),
 }
 Theme.Rarity = Catalog.RarityColor
@@ -44,8 +47,10 @@ Theme.RarityName = Catalog.RarityName
 Theme.Font = Enum.Font.GrenzeGotisch
 Theme.FontBody = Enum.Font.Merriweather
 -- Gótica en negrita para títulos, botones y etiquetas; redondeada muy gruesa para el título del juego.
+-- La de palo seco es para el texto pequeño que se lee en plena partida (HUD, cartas, pausa).
 Theme.FontFace = Font.new("rbxasset://fonts/families/GrenzeGotisch.json", Enum.FontWeight.Bold)
 Theme.TitleFontFace = Font.new("rbxasset://fonts/families/LuckiestGuy.json")
+Theme.HudFontFace = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 
 function Theme.corner(parent: Instance, radius: number?)
 	local c = Instance.new("UICorner")
@@ -189,17 +194,28 @@ function Theme.focusGroup(): FocusGroup
 	return { buttons = {}, focused = nil }
 end
 
+-- Cambia la cara entre los dos grises de losa; un color propio (selección, compra) no se toca.
+local function setFace(button: GuiObject, color: Color3)
+	local face = button.BackgroundColor3
+	if face == Theme.Colors.Stone or face == Theme.Colors.StoneFocus then
+		button.BackgroundColor3 = color
+	end
+end
+
+-- La losa enfocada muestra los corchetes y se oscurece; la que pierde el foco vuelve a su gris.
 function Theme.focus(group: FocusGroup, button: GuiObject?)
 	if group.focused and group.buttons[group.focused] then
 		for _, bracket in group.buttons[group.focused] do
 			bracket.Visible = false
 		end
+		setFace(group.focused, Theme.Colors.Stone)
 	end
 	group.focused = button
 	if button and group.buttons[button] then
 		for _, bracket in group.buttons[button] do
 			bracket.Visible = true
 		end
+		setFace(button, Theme.Colors.StoneFocus)
 	end
 end
 
@@ -234,6 +250,8 @@ end
 function Theme.stoneButton(props, onClick: (() -> ())?, group: FocusGroup?, style: { edge: number?, radius: number?, gap: number? }?): TextButton
 	local edgeSize = style and style.edge or 7
 	local b = Theme.button(props, onClick, { edge = edgeSize, radius = style and style.radius or 6 })
+	-- Sin el tinte de Roblox al pasar el ratón: el foco ya se ve en el color y los corchetes
+	b.AutoButtonColor = false
 	local function textLabel(name: string, color: Color3, offset: number, z: number): TextLabel
 		return Theme.label({
 			Name = name,
@@ -298,6 +316,10 @@ end
 
 -- Panel oscuro con marco metálico y pernos. Con título, añade la cabecera verde azulada.
 -- Devuelve (panel, cuerpo, cabecera?): el cuerpo ocupa todo lo que queda bajo la cabecera.
+-- El marco va por dentro del tamaño del panel, de fuera a dentro: filo negro, banda clara (más
+-- clara arriba), filo, banda media y filo; el separador bajo la cabecera repite el perfil invertido.
+local FRAME = 8 -- grosor del marco: 3 claro + 1 filo + 3 medio + 1 filo
+local SEPARATOR = 9
 local function bolt(parent: GuiObject, anchor: Vector2, position: UDim2)
 	local b = Theme.frame({ Name = "Bolt", BackgroundColor3 = Theme.Colors.Bolt, AnchorPoint = anchor, Position = position, Size = UDim2.fromOffset(14, 14), ZIndex = 6, Parent = parent })
 	Theme.corner(b, 3)
@@ -308,27 +330,38 @@ local function bolt(parent: GuiObject, anchor: Vector2, position: UDim2)
 end
 
 function Theme.panel(props, title: string?, headerHeight: number?): (Frame, Frame, Frame?)
-	local panel = Theme.frame({ BackgroundColor3 = Theme.Colors.Panel })
+	local C = Theme.Colors
+	local panel = Theme.frame({ BackgroundColor3 = C.MetalLight })
 	for k, v in props do
 		(panel :: any)[k] = v
 	end
-	Theme.stroke(panel, Theme.Colors.Metal, 4)
+	Theme.stroke(panel, C.Outline, 1)
+	Theme.frame({ Name = "FrameTop", BackgroundColor3 = C.MetalTop, Size = UDim2.new(1, 0, 0, 3), Parent = panel })
+	-- Anillos concéntricos: filo (a 3 px), banda media (a 4 px), filo (a 7 px) y cuerpo (a 8 px)
+	local inner: Frame = panel
+	for _, ring in { { C.Outline, 3 }, { C.Metal, 1 }, { C.Outline, 3 }, { C.Panel, 1 } } do
+		inner = Theme.frame({ BackgroundColor3 = ring[1], Position = UDim2.fromOffset(ring[2], ring[2]), Size = UDim2.new(1, -ring[2] * 2, 1, -ring[2] * 2), Parent = inner })
+	end
+	inner.Name = "Inner"
 	for _, corner in { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(1, 1) } do
-		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(corner.X, if corner.X == 0 then 2 else -2, corner.Y, if corner.Y == 0 then 2 else -2))
+		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(corner.X, if corner.X == 0 then 4 else -4, corner.Y, if corner.Y == 0 then 4 else -4))
 	end
 	local header: Frame? = nil
 	local top = 0
 	if title then
 		local h = headerHeight or 58
-		header = Theme.frame({ Name = "Header", BackgroundColor3 = Theme.Colors.Header, Size = UDim2.new(1, 0, 0, h), Parent = panel })
+		header = Theme.frame({ Name = "Header", BackgroundColor3 = C.Header, Size = UDim2.new(1, 0, 0, h), Parent = inner })
 		local text = Theme.label({ Name = "Title", Text = title, TextSize = 30, Position = UDim2.fromOffset(16, 0), Size = UDim2.new(1, -32, 1, 0), Parent = header })
 		Theme.outlined(text, 2)
-		Theme.frame({ Name = "Separator", BackgroundColor3 = Theme.Colors.Metal, Position = UDim2.new(0, 0, 0, h), Size = UDim2.new(1, 0, 0, 4), Parent = panel })
-		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(0, 2, 0, h + 2))
-		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(1, -2, 0, h + 2))
-		top = h + 4
+		-- Separador a todo el ancho del marco: filo, banda media, filo, banda clara y filo
+		local separator = Theme.frame({ Name = "Separator", BackgroundColor3 = C.Outline, Position = UDim2.fromOffset(-FRAME, h), Size = UDim2.new(1, FRAME * 2, 0, SEPARATOR), Parent = inner })
+		Theme.frame({ BackgroundColor3 = C.Metal, Position = UDim2.fromOffset(0, 1), Size = UDim2.new(1, 0, 0, 3), Parent = separator })
+		Theme.frame({ BackgroundColor3 = C.MetalLight, Position = UDim2.fromOffset(0, 5), Size = UDim2.new(1, 0, 0, 3), Parent = separator })
+		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(0, 4, 0, FRAME + h + SEPARATOR / 2))
+		bolt(panel, Vector2.new(0.5, 0.5), UDim2.new(1, -4, 0, FRAME + h + SEPARATOR / 2))
+		top = h + SEPARATOR
 	end
-	local body = Theme.frame({ Name = "Body", BackgroundTransparency = 1, Position = UDim2.fromOffset(0, top), Size = UDim2.new(1, 0, 1, -top), Parent = panel })
+	local body = Theme.frame({ Name = "Body", BackgroundTransparency = 1, Position = UDim2.fromOffset(0, top), Size = UDim2.new(1, 0, 1, -top), Parent = inner })
 	return panel, body, header
 end
 
@@ -341,6 +374,7 @@ function Theme.bar(parent: Instance, color: Color3, props): (Frame, Frame, TextL
 	local fill = Theme.frame({ BackgroundColor3 = color, Size = UDim2.fromScale(0, 1), Parent = back })
 	Theme.corner(fill, 3)
 	local text = Theme.label({
+		FontFace = Theme.HudFontFace,
 		Size = UDim2.fromScale(1, 1),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextSize = 14,
@@ -376,8 +410,9 @@ function Theme.formatThousands(n: number): string
 	return (if n < 0 then "-" else "") .. table.concat(groups, ",")
 end
 
--- 1330000 → "1.33M", 989210 → "989.21K", 987000 → "987K", 35 → "35". Trunca a dos decimales con
--- aritmética entera para no mostrar más de lo conseguido.
+-- 1330000 → "1.33M", 1100000 → "1.10M", 989210 → "989.21K", 987000 → "987K", 35 → "35". Con
+-- decimales, siempre dos (como la referencia); los trunca con aritmética entera para no mostrar más
+-- de lo conseguido.
 function Theme.formatCompact(n: number): string
 	local value = math.floor(math.max(0, n))
 	for _, unit in { { 1e9, "B" }, { 1e6, "M" }, { 1e3, "K" } } do
@@ -387,8 +422,7 @@ function Theme.formatCompact(n: number): string
 			if fraction == 0 then
 				return string.format("%d%s", whole, unit[2])
 			end
-			local decimals = string.gsub(string.format("%02d", fraction), "0$", "")
-			return string.format("%d.%s%s", whole, decimals, unit[2])
+			return string.format("%d.%02d%s", whole, fraction, unit[2])
 		end
 	end
 	return string.format("%d", value)

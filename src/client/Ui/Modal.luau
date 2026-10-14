@@ -146,7 +146,7 @@ function Modal.init()
 	gui.Enabled = false
 	local shade = Theme.frame({ Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45, Parent = gui })
 	panel = Theme.frame({ Size = UDim2.new(0, 780, 0, 460), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundTransparency = 1, Parent = shade })
-	titleLabel = Theme.label({ Text = "", RichText = true, TextSize = 28, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 64), Parent = panel })
+	titleLabel = Theme.label({ Text = "", FontFace = Theme.HudFontFace, RichText = true, TextSize = 28, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 64), Parent = panel })
 	cards = Instance.new("ScrollingFrame")
 	cards.Size = UDim2.new(1, 0, 0, 320)
 	cards.Position = UDim2.new(0, 0, 0, 70)

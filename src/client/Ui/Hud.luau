@@ -14,6 +14,17 @@ local Hud = {}
 local C = Theme.Colors
 local gui: ScreenGui
 local refs = {}
+
+-- Texto del HUD en letra de palo seco: la gótica del menú no se lee a 11-14 px en pleno combate.
+local function label(props): TextLabel
+	props.FontFace = props.FontFace or Theme.HudFontFace
+	return Theme.label(props)
+end
+
+local function helpText(): string
+	local b = ClientState.bindings
+	return string.format("[%s] Pausa · [%s] Mapa · [E] Interactuar", b.Pause[1].Name, b.Map[1].Name)
+end
 local markers = {}
 local halfSize = 260
 local lastHud = nil
@@ -75,18 +86,18 @@ local function buildMinimap(parent)
 	local mini = Theme.frame({ Size = UDim2.fromOffset(170, 170), Position = UDim2.new(1, -184, 0, 40), BackgroundColor3 = Color3.fromRGB(20, 30, 25), BackgroundTransparency = 0.25, ClipsDescendants = true, Parent = parent })
 	Theme.corner(mini, 10)
 	Theme.stroke(mini, Color3.fromRGB(0, 0, 0), 2)
-	local arrow = Theme.label({ Name = "Player", Text = "▲", TextSize = 16, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(16, 16), TextColor3 = Color3.new(1, 1, 1), ZIndex = 5, Parent = mini })
+	local arrow = label({ Name = "Player", Text = "▲", TextSize = 16, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(16, 16), TextColor3 = Color3.new(1, 1, 1), ZIndex = 5, Parent = mini })
 	refs.mini, refs.miniArrow = mini, arrow
 
 	local full = Theme.frame({ Size = UDim2.fromOffset(560, 560), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), BackgroundColor3 = Color3.fromRGB(20, 30, 25), BackgroundTransparency = 0.1, Visible = false, ZIndex = 20, Parent = parent })
 	Theme.corner(full, 12)
-	local fullArrow = Theme.label({ Name = "Player", Text = "▲", TextSize = 22, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(22, 22), ZIndex = 25, Parent = full })
+	local fullArrow = label({ Name = "Player", Text = "▲", TextSize = 22, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.fromOffset(22, 22), ZIndex = 25, Parent = full })
 	local legend = Theme.frame({ Size = UDim2.new(0, 170, 1, 0), Position = UDim2.new(1, 8, 0, 0), BackgroundTransparency = 0.2, BackgroundColor3 = C.Panel, Parent = full })
 	Theme.corner(legend, 8)
 	Theme.padding(legend, 8)
 	Theme.list(legend, nil, 2)
 	for kind, name in MARKER_NAMES do
-		Theme.label({ Text = "● " .. name, TextSize = 13, TextColor3 = MARKER_COLOR[kind], Size = UDim2.new(1, 0, 0, 18), Parent = legend })
+		label({ Text = "● " .. name, TextSize = 13, TextColor3 = MARKER_COLOR[kind], Size = UDim2.new(1, 0, 0, 18), Parent = legend })
 	end
 	refs.full, refs.fullArrow = full, fullArrow
 end
@@ -114,18 +125,18 @@ function Hud.init()
 	refs.shFill, refs.shText = shFill, shText
 	refs.hpBack = hpBack
 
-	refs.info = Theme.label({ Text = "", TextSize = 16, RichText = true, Size = UDim2.new(0, 320, 0, 64), Position = UDim2.new(0, 12, 0, 78), TextYAlignment = Enum.TextYAlignment.Top, TextStrokeTransparency = 0.5, Parent = root })
+	refs.info = label({ Text = "", TextSize = 16, RichText = true, Size = UDim2.new(0, 320, 0, 64), Position = UDim2.new(0, 12, 0, 78), TextYAlignment = Enum.TextYAlignment.Top, TextStrokeTransparency = 0.5, Parent = root })
 
 	-- Reloj
-	refs.clockLabel = Theme.label({ Text = "", TextSize = 13, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.new(0, 300, 0, 16), Position = UDim2.new(0.5, 0, 0, 30), TextStrokeTransparency = 0.5, Parent = root })
-	refs.clock = Theme.label({ Text = "10:00", TextSize = 34, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.new(0, 300, 0, 40), Position = UDim2.new(0.5, 0, 0, 44), TextStrokeTransparency = 0.3, Parent = root })
+	refs.clockLabel = label({ Text = "", TextSize = 13, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.new(0, 300, 0, 16), Position = UDim2.new(0.5, 0, 0, 30), TextStrokeTransparency = 0.5, Parent = root })
+	refs.clock = label({ Text = "10:00", TextSize = 34, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Size = UDim2.new(0, 300, 0, 40), Position = UDim2.new(0.5, 0, 0, 44), TextStrokeTransparency = 0.3, Parent = root })
 
 	-- Jefe
 	local bossBack, bossFill, bossText = Theme.bar(root, Color3.fromRGB(200, 30, 50), { Size = UDim2.new(0.5, 0, 0, 22), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 90), Visible = false })
 	refs.bossBack, refs.bossFill, refs.bossText = bossBack, bossFill, bossText
 
 	-- Armas y tomos
-	refs.loadout = Theme.label({ Text = "", RichText = true, TextSize = 14, Size = UDim2.new(0, 360, 0, 200), Position = UDim2.new(0, 12, 1, -212), TextYAlignment = Enum.TextYAlignment.Bottom, TextStrokeTransparency = 0.4, Parent = root })
+	refs.loadout = label({ Text = "", RichText = true, TextSize = 14, Size = UDim2.new(0, 360, 0, 200), Position = UDim2.new(0, 12, 1, -212), TextYAlignment = Enum.TextYAlignment.Bottom, TextStrokeTransparency = 0.4, Parent = root })
 	-- Objetos
 	local items = Theme.frame({ Size = UDim2.new(0, 420, 0, 120), Position = UDim2.new(1, -432, 1, -132), BackgroundTransparency = 1, Parent = root })
 	local grid = Instance.new("UIGridLayout")
@@ -141,7 +152,7 @@ function Hud.init()
 	refs.toasts = Theme.frame({ Size = UDim2.new(0, 500, 0, 140), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 130), BackgroundTransparency = 1, Parent = root })
 	Theme.list(refs.toasts, nil, 4, Enum.HorizontalAlignment.Center)
 
-	Theme.label({ Text = "[P] Pausa · [M] Mapa · [E] Interactuar", TextSize = 12, TextColor3 = C.Muted, Size = UDim2.new(0, 300, 0, 16), Position = UDim2.new(1, -312, 0, 216), TextXAlignment = Enum.TextXAlignment.Right, Parent = root })
+	refs.help = label({ Text = helpText(), TextSize = 12, TextColor3 = C.Muted, Size = UDim2.new(0, 300, 0, 16), Position = UDim2.new(1, -312, 0, 216), TextXAlignment = Enum.TextXAlignment.Right, Parent = root })
 
 	buildMinimap(root)
 
@@ -204,13 +215,16 @@ end
 
 function Hud.show(visible: boolean)
 	gui.Enabled = visible
+	if visible then
+		refs.help.Text = helpText() -- las teclas pueden haberse reasignado en Ajustes
+	end
 	if not visible then
 		refs.full.Visible = false
 	end
 end
 
 function Hud.toast(text: string)
-	local label = Theme.label({
+	local toast = label({
 		Text = text,
 		TextSize = 20,
 		TextXAlignment = Enum.TextXAlignment.Center,
@@ -220,7 +234,7 @@ function Hud.toast(text: string)
 		Parent = refs.toasts,
 	})
 	task.delay(3, function()
-		label:Destroy()
+		toast:Destroy()
 	end)
 end
 
@@ -229,9 +243,9 @@ local function itemCell(item)
 	Theme.corner(cell, 6)
 	Theme.stroke(cell, Theme.Rarity[item.rarity], 2)
 	local initials = string.upper(string.sub(item.name, 1, 2))
-	Theme.label({ Text = initials, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), TextColor3 = Theme.Rarity[item.rarity], Parent = cell })
+	label({ Text = initials, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), TextColor3 = Theme.Rarity[item.rarity], Parent = cell })
 	if item.count > 1 then
-		Theme.label({ Text = "×" .. item.count, TextSize = 11, Size = UDim2.new(1, -2, 0, 12), Position = UDim2.new(0, 0, 1, -12), TextXAlignment = Enum.TextXAlignment.Right, Parent = cell })
+		label({ Text = "×" .. item.count, TextSize = 11, Size = UDim2.new(1, -2, 0, 12), Position = UDim2.new(0, 0, 1, -12), TextXAlignment = Enum.TextXAlignment.Right, Parent = cell })
 	end
 	return cell
 end

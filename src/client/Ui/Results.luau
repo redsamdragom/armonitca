@@ -27,7 +27,7 @@ function Results.init(backCallback)
 	scroll.CanvasSize = UDim2.new()
 	scroll.Parent = panel
 	body = Theme.label({ RichText = true, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Font = Theme.FontBody, TextSize = 16, Size = UDim2.new(1, -10, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = scroll })
-	Theme.button({ Text = "Volver al menú", Size = UDim2.new(0, 240, 0, 44), Position = UDim2.new(0.5, -120, 1, -44), BackgroundColor3 = C.Accent, TextColor3 = C.Background, Parent = panel }, function()
+	Theme.button({ Text = "Volver al menú", Size = UDim2.new(0, 240, 0, 44), Position = UDim2.new(0.5, -120, 1, -44), BackgroundColor3 = C.Accent, TextColor3 = C.Background, TextStrokeTransparency = 1, Parent = panel }, function()
 		gui.Enabled = false
 		onBack()
 	end)

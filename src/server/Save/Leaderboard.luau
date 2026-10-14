@@ -5,7 +5,7 @@
 -- Las listas se guardan en caché 60 s por ámbito (la global, compartida; la de amigos, por jugador)
 -- y cada jugador puede pedir una respuesta por ámbito cada 3 s. Si DataStore no está disponible
 -- (Studio sin acceso a la API o el arnés de pruebas), la clasificación vive en memoria del servidor
--- y la respuesta lleva persistent = false.
+-- y la respuesta lleva persistent = false. Al cerrar el servidor se esperan las marcas pendientes.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -22,11 +22,17 @@ local REQUEST_INTERVAL = 3
 local PENDING_WAIT = 10 -- s que espera una petición repetida a que termine la que está en curso
 local FRIENDS_LIST_SECONDS = 600
 local META_SECONDS = 300
+local VALUE_SECONDS = 300 -- las marcas sólo suben y las de este servidor ya están en known
+local MAX_READS = 15 -- lecturas nuevas por refresco de la lista de amigos (el resto, en el siguiente)
+local PARTIAL_SECONDS = 10 -- caducidad de una lista de amigos a la que le faltan lecturas
 local BUDGET_RESERVE = 10 -- peticiones que se dejan libres para cargar y guardar perfiles
+local CLOSE_WAIT = 25 -- s que espera el cierre del servidor a las marcas pendientes
 
 local EMPTY = table.freeze({})
 
 local available = true -- pasa a false si DataStoreService no responde: todo queda en memoria
+local storeOk = true -- resultado de la última petición al almacén (para persistent)
+local submitting = 0 -- marcas que se están escribiendo
 local week = -1
 local ordered: OrderedDataStore? = nil
 local meta: DataStore? = nil
@@ -62,6 +68,7 @@ local function syncWeek()
 	table.clear(known)
 	globalCache = nil
 	table.clear(friendsCache)
+	table.clear(friendLists)
 	table.clear(values)
 	table.clear(metaCache)
 	table.clear(requests)
@@ -78,6 +85,28 @@ local function syncWeek()
 		ordered, meta = nil, nil
 		warn("[Clasificación] DataStore no disponible; la clasificación será temporal:", err)
 	end
+end
+
+-- Anota el resultado de una petición al almacén. Un error de permisos (lugar sin acceso a la API)
+-- no se arregla reintentando: la clasificación pasa a vivir en memoria.
+local function noteResult(ok: boolean, err: any?)
+	storeOk = ok
+	if ok then
+		return
+	end
+	local message = tostring(err)
+	if string.find(message, "StudioAccessToApisNotAllowed", 1, true) or string.find(message, "403", 1, true) then
+		if available then
+			warn("[Clasificación] Sin acceso a DataStore; la clasificación será temporal:", message)
+		end
+		available = false
+		ordered, meta = nil, nil
+	end
+end
+
+-- Las tablas por jugador sólo se rellenan si sigue en el servidor (tras ceder, puede haber salido).
+local function present(player: Player): boolean
+	return table.find(Players:GetPlayers(), player) ~= nil
 end
 
 -- Margen de peticiones de DataStore: la clasificación nunca agota el de los perfiles.
@@ -126,9 +155,11 @@ local function metaOf(userId: number)
 	if not store or not hasBudget("GetAsync") then
 		return cached or mine or EMPTY
 	end
+	local startWeek = week
 	local ok, data = pcall(function()
 		return store:GetAsync(tostring(userId))
 	end)
+	noteResult(ok, data)
 	if not ok then
 		return cached or mine or EMPTY
 	end
@@ -137,28 +168,36 @@ local function metaOf(userId: number)
 		cached.name = if typeof(data.name) == "string" then data.name else nil
 		cached.character = if typeof(data.character) == "string" then data.character else nil
 	end
-	metaCache[userId] = cached
+	if week == startWeek then
+		metaCache[userId] = cached
+	end
 	return cached
 end
 
--- Mejor marca de la semana de un jugador concreto (nil si no tiene ninguna).
-local function valueOf(userId: number): number?
+-- Mejor marca de la semana de un jugador concreto (nil si no tiene ninguna). Con canRead = false
+-- no se lee el almacén (se usa la lectura anterior aunque haya caducado). El segundo valor dice si
+-- la marca está al día: false si hacía falta leerla y no se pudo.
+local function valueOf(userId: number, canRead: boolean?): (number?, boolean)
 	local now = os.clock()
 	local cached = values[userId]
 	local stored = if cached then cached.kills else nil
+	local fresh = cached ~= nil and cached.expires > now
 	local store = ordered
-	if (not cached or cached.expires <= now) and store and hasBudget("GetAsync") then
+	if not fresh and store and canRead ~= false and hasBudget("GetAsync") then
+		local startWeek = week
 		local ok, result = pcall(function()
 			return store:GetAsync(tostring(userId))
 		end)
-		if ok then
+		noteResult(ok, result)
+		if ok and week == startWeek then
 			stored = if typeof(result) == "number" then result else nil
-			values[userId] = { expires = now + CACHE_SECONDS, kills = stored }
+			values[userId] = { expires = now + VALUE_SECONDS, kills = stored }
+			fresh = true
 		end
 	end
 	local mine = known[userId]
 	local best = math.max(stored or 0, if mine then mine.kills else 0)
-	return if best > 0 then best else nil
+	return if best > 0 then best else nil, fresh or store == nil
 end
 
 -- Superpone a una lista leída del almacén las marcas que conoce este servidor (sólo las de members
@@ -191,6 +230,7 @@ local function fetchGlobalPage()
 	local ok, result = pcall(function()
 		return store:GetSortedAsync(false, PAGE_SIZE):GetCurrentPage()
 	end)
+	noteResult(ok, result)
 	if not ok then
 		warn("[Clasificación] No se pudo leer la clasificación global:", result)
 		return nil
@@ -214,15 +254,21 @@ local function globalList()
 			-- Mientras se lee, las demás peticiones usan la lista anterior
 			cache.expires = now + CACHE_SECONDS
 		end
+		local startWeek = week
 		local page = fetchGlobalPage()
 		if page then
 			cache = { expires = now + CACHE_SECONDS, page = page, persistent = true }
 		elseif not cache then
 			cache = { expires = now + CACHE_SECONDS, page = {}, persistent = false }
 		end
+		if week ~= startWeek then
+			-- La semana cambió mientras se leía: lo leído es de la anterior
+			return merged({}), ordered ~= nil
+		end
 		globalCache = cache
 	end
-	return merged(cache.page), cache.persistent
+	-- Sin acceso al almacén (detectado después) la lista guardada ya no es persistente
+	return merged(cache.page), cache.persistent and ordered ~= nil
 end
 
 -- Amigos del jugador (máximo 50); si no se pueden leer, se reintenta al caducar la caché.
@@ -234,7 +280,7 @@ local function friendIds(player: Player): { number }
 	end
 	local ids = {}
 	local ok = pcall(function()
-		local pages = player:GetFriendsAsync()
+		local pages = Players:GetFriendsAsync(player.UserId)
 		while true do
 			for _, friend in pages:GetCurrentPage() do
 				if #ids >= MAX_FRIENDS then
@@ -254,7 +300,9 @@ local function friendIds(player: Player): { number }
 	if not ok and cached then
 		ids = cached.ids
 	end
-	friendLists[player] = { expires = now + (if ok then FRIENDS_LIST_SECONDS else CACHE_SECONDS), ids = ids }
+	if present(player) then
+		friendLists[player] = { expires = now + (if ok then FRIENDS_LIST_SECONDS else CACHE_SECONDS), ids = ids }
+	end
 	return ids
 end
 
@@ -270,17 +318,47 @@ local function friendsList(player: Player)
 				table.insert(ids, id)
 			end
 		end
-		local page = {}
+		-- Las marcas caducadas se leen en paralelo y como mucho MAX_READS por refresco; las demás
+		-- usan la lectura anterior y la lista caduca antes para completarse en el siguiente.
+		local startWeek = week
+		local kills: { [number]: number? } = {}
+		local complete = true
+		local reads, running = 0, 0
 		for _, id in ids do
-			local kills = valueOf(id)
-			if kills then
-				table.insert(page, { userId = id, kills = kills })
+			local cached = values[id]
+			if ordered and (not cached or cached.expires <= now) and reads < MAX_READS then
+				reads += 1
+				running += 1
+				task.spawn(function()
+					local value, fresh = valueOf(id)
+					kills[id] = value
+					complete = complete and fresh
+					running -= 1
+				end)
+			else
+				local value, fresh = valueOf(id, false)
+				kills[id] = value
+				complete = complete and fresh
 			end
 		end
-		cache = { expires = now + CACHE_SECONDS, page = page, members = members, persistent = ordered ~= nil }
-		friendsCache[player] = cache
+		local waited = 0
+		while running > 0 and waited < PENDING_WAIT do
+			waited += task.wait(0.05)
+		end
+		complete = complete and running == 0
+		local page = {}
+		for _, id in ids do
+			if kills[id] then
+				table.insert(page, { userId = id, kills = kills[id] })
+			end
+		end
+		local persistent = ordered ~= nil and storeOk
+		cache = { expires = now + (if complete then CACHE_SECONDS else PARTIAL_SECONDS), page = page, members = members, persistent = persistent }
+		if week == startWeek and present(player) then
+			friendsCache[player] = cache
+		end
 	end
-	return merged(cache.page, cache.members), cache.persistent
+	return merged(cache.page, cache.members), cache.persistent and ordered ~= nil
 end
 
 local function entryFor(rank: number?, userId: number, kills: number)
@@ -316,18 +394,13 @@ local function build(player: Player, scope: string)
 	return {
 		scope = scope,
 		entries = entries,
-		me = entryFor(myRank, userId, myKills or valueOf(userId) or 0),
+		me = entryFor(myRank, userId, myKills or (valueOf(userId)) or 0),
 		resetsIn = resetsIn(),
 		persistent = persistent,
 	}
 end
 
--- Registra el resultado de una partida; sólo cuenta si supera la mejor marca de la semana.
-function Leaderboard.submit(player: Player, kills: number, characterId: string?)
-	if typeof(kills) ~= "number" or kills ~= kills or kills < 1 or kills == math.huge then
-		return
-	end
-	kills = math.floor(kills)
+local function submit(player: Player, kills: number, characterId: string?)
 	syncWeek()
 	local startWeek = week
 	local userId = player.UserId
@@ -346,6 +419,7 @@ function Leaderboard.submit(player: Player, kills: number, characterId: string?)
 				return if wrote then kills else nil
 			end)
 		end)
+		noteResult(ok, err)
 		if not ok then
 			wrote = false
 			warn("[Clasificación] No se pudo guardar la marca:", err)
@@ -359,12 +433,13 @@ function Leaderboard.submit(player: Player, kills: number, characterId: string?)
 	local previous = math.max(stored or 0, if mine then mine.kills else 0)
 	if kills > previous then
 		known[userId] = { kills = kills, name = name, character = character }
-		values[userId] = { expires = os.clock() + CACHE_SECONDS, kills = if wrote then kills else stored }
+		values[userId] = { expires = os.clock() + VALUE_SECONDS, kills = if wrote then kills else stored }
 		local metaStore = meta
 		if wrote and metaStore then
 			local ok, err = pcall(function()
 				metaStore:SetAsync(tostring(userId), { name = name, character = character })
 			end)
+			noteResult(ok, err)
 			if not ok then
 				warn("[Clasificación] No se pudieron guardar los datos de la marca:", err)
 			end
@@ -372,6 +447,19 @@ function Leaderboard.submit(player: Player, kills: number, characterId: string?)
 	elseif not mine or mine.kills < previous then
 		-- La mejor marca es de otro servidor: su personaje se lee de los metadatos
 		known[userId] = { kills = previous, name = name }
+	end
+end
+
+-- Registra el resultado de una partida; sólo cuenta si supera la mejor marca de la semana.
+function Leaderboard.submit(player: Player, kills: number, characterId: string?)
+	if typeof(kills) ~= "number" or kills ~= kills or kills < 1 or kills == math.huge then
+		return
+	end
+	submitting += 1
+	local ok, err = pcall(submit, player, math.floor(kills), characterId)
+	submitting -= 1
+	if not ok then
+		warn("[Clasificación] Error al registrar la marca:", err)
 	end
 end
 
@@ -401,7 +489,12 @@ function Leaderboard.get(player: Player, scope: string)
 	end
 	slot = { at = now, pending = true }
 	slots[scope] = slot
+	local startWeek = week
 	local ok, response = pcall(build, player, scope)
+	if ok and week ~= startWeek then
+		-- La semana cambió mientras se preparaba: se rehace con los almacenes nuevos
+		ok, response = pcall(build, player, scope)
+	end
 	if not ok then
 		warn("[Clasificación] Error al preparar la clasificación:", response)
 		local mine = known[player.UserId]
@@ -422,6 +515,14 @@ Players.PlayerRemoving:Connect(function(player)
 	requests[player] = nil
 	friendsCache[player] = nil
 	friendLists[player] = nil
+end)
+
+-- Las marcas enviadas al salir el último jugador se escriben mientras el servidor se cierra.
+game:BindToClose(function()
+	local waited = 0
+	while submitting > 0 and waited < CLOSE_WAIT do
+		waited += task.wait(0.1)
+	end
 end)
 
 syncWeek()

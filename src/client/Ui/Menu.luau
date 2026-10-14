@@ -20,8 +20,11 @@ local Menu = {}
 local C = Theme.Colors
 local WHITE = Color3.new(1, 1, 1)
 local DESIGN_W, DESIGN_H = 1920, 1080
+-- Ancho mínimo de diseño: por debajo, tarjetas, título y clasificación se solaparían y la escala pasa
+-- a seguir al ancho en lugar de al alto.
+local MIN_W = 1720
 -- Letra de palo seco para la cuenta atrás, la versión y los nombres (como en la referencia).
-local SANS = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
+local SANS = Theme.HudFontFace
 
 local gui: ScreenGui
 local root: Frame
@@ -34,6 +37,7 @@ local silverLabel: TextLabel
 local statusLabel: TextLabel
 local playButton: TextButton
 local focus = Theme.focusGroup()
+local waitingRebind: string? = nil -- acción de Ajustes que espera una tecla nueva
 local selected = { character = "Fox", map = "Forest", tier = 1 }
 
 local STATUS_TEXT = { owned = "Disponible", available = "¡Listo para comprar!", locked = "Bloqueado" }
@@ -337,6 +341,12 @@ local function missionCard(m, props, barWidth: number, reserve: number?): Frame
 	end
 	Theme.corner(card, 3)
 	Theme.stroke(card, C.CardBorder, 2)
+	-- Filos negros de 1 px a ambos lados del borde claro: uno por fuera y otro sobre el relleno
+	for _, edge in { { -3, 6, 6 }, { 1, -2, 2 } } do
+		local line = Theme.frame({ Name = "Edge", BackgroundTransparency = 1, Position = UDim2.fromOffset(edge[1], edge[1]), Size = UDim2.new(1, edge[2], 1, edge[2]), Parent = card })
+		Theme.corner(line, edge[3])
+		Theme.stroke(line, Color3.new(0, 0, 0), 1)
+	end
 	local icon = Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(10, 8), Size = UDim2.fromOffset(58, 58), Parent = card })
 	drawIcon(icon, m.kind, m.id)
 	local right = 90 + (reserve or 0)
@@ -479,7 +489,8 @@ openWindow = function(name: string)
 		Name = name,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(spec.size.X, spec.size.Y),
+		-- El marco metálico va por dentro: se suma para que el contenido conserve su tamaño
+		Size = UDim2.fromOffset(spec.size.X + 16, spec.size.Y + 21),
 		Parent = windowLayer,
 	}, spec.title)
 	local content = Theme.frame({ Name = "Content", BackgroundTransparency = 1, Position = UDim2.fromOffset(22, 18), Size = UDim2.new(1, -44, 1, -116), Parent = body })
@@ -489,6 +500,7 @@ openWindow = function(name: string)
 end
 
 closeWindow = function(select: boolean?)
+	waitingRebind = nil
 	if window then
 		window.panel:Destroy()
 		window = nil
@@ -989,8 +1001,6 @@ local OPTIONS = {
 	{ key = "disableSilverTome", label = "Desactivar Silver Tome en ofertas", toggle = true },
 }
 
-local waitingRebind: string? = nil
-
 local function settingRow(list: Instance, order: number, text: string): Frame
 	local row = Theme.frame({ BackgroundColor3 = C.Row, Size = UDim2.new(1, -16, 0, 56), LayoutOrder = order, Parent = list })
 	Theme.corner(row, 3)
@@ -1070,14 +1080,20 @@ WINDOWS.Settings = {
 	end,
 }
 
+-- La espera de tecla sólo vale con Ajustes abierto y el menú a la vista; Escape la cancela.
 UserInputService.InputBegan:Connect(function(input)
-	if waitingRebind and input.UserInputType == Enum.UserInputType.Keyboard then
-		ClientState.bindings[waitingRebind][1] = input.KeyCode
-		waitingRebind = nil
-		if window and window.name == "Settings" then
-			renderWindow("refresh")
-		end
+	if not waitingRebind or input.UserInputType ~= Enum.UserInputType.Keyboard then
+		return
 	end
+	local action = waitingRebind
+	waitingRebind = nil
+	if not (gui and gui.Enabled and window and window.name == "Settings") then
+		return
+	end
+	if input.KeyCode ~= Enum.KeyCode.Escape then
+		ClientState.bindings[action][1] = input.KeyCode
+	end
+	renderWindow("refresh")
 end)
 
 -- Idioma, Discord, créditos y salir -------------------------------------------------------------
@@ -1099,11 +1115,53 @@ WINDOWS.Language = {
 	end,
 }
 
+-- Las normas de Roblox sólo permiten mencionar enlaces externos a quien su política se lo admite
+-- (AllowedExternalLinkReferences). nil: sin consultar o la consulta falló (se reintenta al abrir).
+local discordAllowed: boolean? = nil
+local policyPending = false
+
+local function queryPolicy()
+	if discordAllowed ~= nil or policyPending then
+		return
+	end
+	policyPending = true
+	local answered = false
+	task.spawn(function()
+		local ok, info = pcall(function()
+			return game:GetService("PolicyService"):GetPolicyInfoForPlayerAsync(Players.LocalPlayer)
+		end)
+		policyPending = false
+		if ok and typeof(info) == "table" then
+			discordAllowed = table.find(info.AllowedExternalLinkReferences or {}, "Discord") ~= nil
+		end
+		-- Si la respuesta llegó después de dibujar la ventana, se vuelve a dibujar
+		if answered and window and window.name == "Discord" then
+			renderWindow("refresh")
+		end
+	end)
+	answered = true
+end
+
 WINDOWS.Discord = {
 	title = "DISCORD",
 	size = Vector2.new(780, 420),
 	render = function(content)
 		local invite = Config.DiscordInvite or ""
+		if invite ~= "" then
+			queryPolicy()
+		end
+		if invite ~= "" and discordAllowed ~= true then
+			Theme.label({
+				Text = if policyPending then "Cargando..." else "Busca los enlaces sociales en la página del juego.",
+				TextWrapped = true,
+				Font = Theme.FontBody,
+				TextSize = 19,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				Size = UDim2.fromScale(1, 1),
+				Parent = content,
+			})
+			return nil
+		end
 		if invite == "" then
 			Theme.label({
 				Text = "La invitación de Discord aún no está configurada.\nAñade el enlace en <b>Config.DiscordInvite</b> (src/shared/Config.luau) y aparecerá aquí para copiarlo.",
@@ -1219,7 +1277,9 @@ local board = {
 	fetchedAt = -math.huge,
 	resetsAt = nil :: number?,
 }
-local thumbnails: { [number]: string | false } = {}
+-- Miniaturas de avatar: la URL, o el momento del último fallo (se reintenta pasado THUMB_RETRY)
+local thumbnails: { [number]: string | number } = {}
+local THUMB_RETRY = 60
 
 local function formatCountdown(seconds: number): string
 	local s = math.max(0, math.floor(seconds))
@@ -1240,18 +1300,19 @@ local function setAvatar(r, userId: number?)
 		return
 	end
 	local cached = thumbnails[userId]
-	if cached ~= nil then
-		if cached then
-			r.avatar.Image = cached
-			r.unknown.Visible = false
-		end
+	if type(cached) == "string" then
+		r.avatar.Image = cached
+		r.unknown.Visible = false
+		return
+	elseif type(cached) == "number" and os.clock() - cached < THUMB_RETRY then
 		return
 	end
+	thumbnails[userId] = os.clock() -- evita pedirla dos veces mientras llega
 	task.spawn(function()
 		local ok, url = pcall(function()
 			return Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
 		end)
-		thumbnails[userId] = if ok then url else false
+		thumbnails[userId] = if ok then url else os.clock()
 		if ok and r.userId == userId then
 			r.avatar.Image = url
 			r.unknown.Visible = false
@@ -1374,13 +1435,13 @@ local function buildLeaderboard(parent: Instance)
 		Position = UDim2.new(1, -22, 1, -65),
 		Size = UDim2.fromOffset(408, 529),
 		Parent = parent,
-	}, "CLASIFICACIÓN")
+	}, "CLASIFICACIÓN", 54)
 	assert(header)
 	outlined(Theme.label({ Text = "Reset", FontFace = SANS, TextSize = 21, TextColor3 = C.Yellow, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 5), Size = UDim2.fromOffset(160, 22), Parent = header }), 1)
 	board.countdown = outlined(Theme.label({ Text = "--:--:--", FontFace = SANS, TextSize = 25, TextColor3 = C.Yellow, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 27), Size = UDim2.fromOffset(160, 26), Parent = header }), 1)
 
 	-- Pestañas: la activa toma el color del cuerpo y queda unida a la tabla.
-	local strip = Theme.frame({ BackgroundColor3 = C.TabOff, Position = UDim2.fromOffset(13, 12), Size = UDim2.new(1, -26, 0, 48), Parent = body })
+	local strip = Theme.frame({ BackgroundColor3 = C.TabOff, Position = UDim2.fromOffset(13, 3), Size = UDim2.new(1, -26, 0, 48), Parent = body })
 	for i, tab in { { "global", "GLOBAL", 111 }, { "friends", "AMIGOS", 114 } } do
 		local b = Instance.new("TextButton")
 		b.Name = tab[1]
@@ -1403,23 +1464,23 @@ local function buildLeaderboard(parent: Instance)
 	end
 
 	local headColor = Color3.fromRGB(215, 215, 208)
-	outlined(Theme.label({ Text = "RANGO", TextSize = 22, TextColor3 = headColor, Position = UDim2.fromOffset(21, 72), Size = UDim2.fromOffset(90, 26), Parent = body }), 1.5)
-	outlined(Theme.label({ Text = "JUGADOR", TextSize = 22, TextColor3 = headColor, Position = UDim2.fromOffset(121, 72), Size = UDim2.fromOffset(120, 26), Parent = body }), 1.5)
-	outlined(Theme.label({ Text = "ELIMINACIONES", TextSize = 13, TextColor3 = headColor, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -55, 0, 72), Size = UDim2.fromOffset(140, 26), Parent = body }), 1)
+	outlined(Theme.label({ Text = "RANGO", TextSize = 22, TextColor3 = headColor, Position = UDim2.fromOffset(21, 63), Size = UDim2.fromOffset(90, 26), Parent = body }), 1.5)
+	outlined(Theme.label({ Text = "JUGADOR", TextSize = 22, TextColor3 = headColor, Position = UDim2.fromOffset(121, 63), Size = UDim2.fromOffset(120, 26), Parent = body }), 1.5)
+	outlined(Theme.label({ Text = "ELIMINACIONES", TextSize = 13, TextColor3 = headColor, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -55, 0, 63), Size = UDim2.fromOffset(140, 26), Parent = body }), 1)
 
 	for i = 1, 9 do
-		board.rows[i] = boardRow(body, 105 + (i - 1) * 34, false)
+		board.rows[i] = boardRow(body, 96 + (i - 1) * 34, false)
 	end
-	board.me = boardRow(body, 105 + 9 * 34, true)
-	board.message = outlined(Theme.label({ Text = "", TextSize = 26, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center, Position = UDim2.fromOffset(15, 105), Size = UDim2.new(1, -30, 0, 300), Visible = false, Parent = body }), 1.5)
+	board.me = boardRow(body, 96 + 9 * 34, true)
+	board.message = outlined(Theme.label({ Text = "", TextSize = 26, TextColor3 = C.Muted, TextXAlignment = Enum.TextXAlignment.Center, Position = UDim2.fromOffset(15, 96), Size = UDim2.new(1, -30, 0, 300), Visible = false, Parent = body }), 1.5)
 	board.note = Theme.label({
 		Text = "Clasificación temporal: el guardado no está disponible",
 		FontFace = SANS,
 		TextSize = 13,
 		TextColor3 = C.Muted,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		Position = UDim2.fromOffset(15, 443),
-		Size = UDim2.new(1, -30, 0, 18),
+		Position = UDim2.fromOffset(15, 433),
+		Size = UDim2.new(1, -30, 0, 16),
 		Visible = false,
 		Parent = body,
 	})
@@ -1457,14 +1518,15 @@ local function refreshHome()
 end
 
 -- Escala el diseño de 1920×1080 a la ventana: la raíz mide la pantalla en píxeles de diseño, así
--- que lo anclado a esquinas y bordes se reparte bien con cualquier proporción.
+-- que lo anclado a esquinas y bordes se reparte bien con cualquier proporción. Se escala por el
+-- alto (las medidas salen de la captura según su alto) salvo en pantallas más estrechas que MIN_W.
 applyScale = function()
 	local size = gui.AbsoluteSize
 	if size.X < 2 or size.Y < 2 then
 		local camera = workspace.CurrentCamera
 		size = if camera then camera.ViewportSize else Vector2.new(DESIGN_W, DESIGN_H)
 	end
-	local s = math.max(0.2, math.min(size.X / DESIGN_W, size.Y / DESIGN_H) * (ClientState.settings.uiScale or 1))
+	local s = math.max(0.2, math.min(size.Y / DESIGN_H, size.X / MIN_W) * (ClientState.settings.uiScale or 1))
 	designScale.Scale = s
 	root.Size = UDim2.fromOffset(size.X / s, size.Y / s)
 	-- Las tarjetas no deben quedar bajo la barra superior de Roblox
@@ -1587,7 +1649,20 @@ function Menu.init()
 	local silverRow = Theme.list(silver, Enum.FillDirection.Horizontal, 12, Enum.HorizontalAlignment.Right)
 	silverRow.VerticalAlignment = Enum.VerticalAlignment.Center
 	drawCoin(Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromOffset(32, 32), LayoutOrder = 1, Parent = silver }))
-	silverLabel = outlined(Theme.label({ Text = "—", TextSize = 52, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 62), LayoutOrder = 2, Parent = silver }), 3)
+	-- La cifra se dibuja como el texto de las losas: sombra desplazada, contorno y degradado. La
+	-- etiqueta exterior (invisible) da el ancho y guarda el texto; las hijas lo copian.
+	silverLabel = Theme.label({ Name = "SilverAmount", Text = "—", TextSize = 52, TextTransparency = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 62), LayoutOrder = 2, Parent = silver })
+	local silverShadow = Theme.label({ Name = "TextShadow", Text = "—", TextSize = 52, TextColor3 = C.Outline, TextTransparency = 0.25, Position = UDim2.fromOffset(2, 3), Size = UDim2.fromScale(1, 1), ZIndex = 1, Parent = silverLabel })
+	Theme.outlined(silverShadow, 3, C.Outline, 0.25)
+	local silverText = outlined(Theme.label({ Name = "Label", Text = "—", TextSize = 52, TextColor3 = WHITE, Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = silverLabel }), 3)
+	local silverGradient = Instance.new("UIGradient")
+	silverGradient.Rotation = 90
+	silverGradient.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 205))
+	silverGradient.Parent = silverText
+	silverLabel:GetPropertyChangedSignal("Text"):Connect(function()
+		silverShadow.Text = silverLabel.Text
+		silverText.Text = silverLabel.Text
+	end)
 
 	-- Abajo a la derecha: versión
 	outlined(Theme.label({

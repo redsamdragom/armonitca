@@ -330,6 +330,10 @@ do
 	check(friends.scope == "friends" and #friends.entries == 1 and friends.entries[1].userId == 7002, "amigos sin GetFriendsAsync: sólo el propio jugador")
 	check(friends.me.rank == 1 and friends.me.kills == 300, "rango del jugador entre sus amigos")
 	check(Harness.validatePayload(friends, "GetLeaderboard") == nil, "la respuesta de amigos es serializable")
+	Harness.friends[caro.UserId] = { ana.UserId, beto.UserId }
+	local caroFriends = Leaderboard.get(caro, "friends")
+	check(#caroFriends.entries == 3 and caroFriends.entries[1].userId == 7002 and caroFriends.entries[3].userId == 7001, "amigos leídos con Players:GetFriendsAsync")
+	check(caroFriends.me.rank == 2 and caroFriends.me.kills == 200, "rango del jugador entre sus amigos (con amigos)")
 	check(Leaderboard.get(ana, "todos") == nil, "se rechaza un ámbito desconocido")
 
 	-- Una segunda petición en menos de 3 s devuelve la respuesta anterior

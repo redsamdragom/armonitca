@@ -900,6 +900,26 @@ function Harness.build(root)
 	services.Players.GetNameFromUserIdAsync = function(_, userId)
 		error("GetNameFromUserIdAsync no disponible en el arnés (" .. tostring(userId) .. ")")
 	end
+	-- Amigos simulados: Harness.friends[userId] = { ids }; sin lista, la llamada falla como en Studio
+	-- sin conexión. Devuelve un FriendPages de una sola página.
+	Harness.friends = {}
+	services.Players.GetFriendsAsync = function(_, userId)
+		local ids = Harness.friends[userId]
+		if not ids then
+			error("Lista de amigos no disponible en el arnés")
+		end
+		local page = {}
+		for _, id in ids do
+			table.insert(page, { Id = id, Username = "Jugador" .. id, DisplayName = "Jugador" .. id, IsOnline = false })
+		end
+		return {
+			IsFinished = true,
+			GetCurrentPage = function()
+				return page
+			end,
+			AdvanceToNextPageAsync = function() end,
+		}
+	end
 	Harness.players = players
 	game.GetService = function(_, name)
 		local s = services[name]
@@ -1048,9 +1068,6 @@ end
 
 function Harness.addPlayer(userId)
 	local player = new("Player", { Name = "Jugador" .. userId, UserId = userId, DisplayName = "Jugador" .. userId })
-	player.GetFriendsAsync = function()
-		error("Lista de amigos no disponible en el arnés")
-	end
 	table.insert(Harness.players, player)
 	Harness.localPlayer = player
 	return player
@@ -1148,6 +1165,17 @@ function Harness.setupClient(userId)
 	services.TweenService = strict(tweenService)
 
 	services.SoundService = strict(new("SoundService", { Name = "SoundService", Parent = game }))
+	-- Política del jugador: Harness.policyLinks son los enlaces externos permitidos (nil: falla)
+	Harness.policyLinks = { "Discord" }
+	local policyService = new("PolicyService", { Name = "PolicyService", Parent = game })
+	policyService.GetPolicyInfoForPlayerAsync = function(_, player)
+		assert(player == services.Players.LocalPlayer, "GetPolicyInfoForPlayerAsync: se esperaba el jugador local")
+		if not Harness.policyLinks then
+			error("HTTP 500 (política no disponible)")
+		end
+		return { AllowedExternalLinkReferences = table.clone(Harness.policyLinks), ArePaidRandomItemsRestricted = false }
+	end
+	services.PolicyService = strict(policyService)
 	local textService = new("TextService", { Name = "TextService" })
 	textService.GetTextSize = function(_, text, size)
 		return roblox.Vector2.new(#tostring(text) * size * 0.5, size)
