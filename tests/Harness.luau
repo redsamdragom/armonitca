@@ -1030,6 +1030,7 @@ function Harness.build(root)
 	clientEnv = setmetatable({ os = clientOs }, { __index = env })
 
 	Harness.services = services
+	Harness.Instance = Instance
 	Harness.shared = shared
 	Harness.server = server
 	Harness.require = customRequire

@@ -124,6 +124,62 @@ local function brackets(button)
 	return visible
 end
 
+-- Textos por defecto de Roblox ("Label", "Button") que quedarían a la vista en una pantalla activa.
+local function placeholders(gui)
+	local found = {}
+	if not gui.Enabled then
+		return found
+	end
+	for _, d in gui:GetDescendants() do
+		if (d:IsA("TextLabel") and d.Text == "Label") or (d:IsA("TextButton") and d.Text == "Button") or (d:IsA("TextBox") and d.Text == "TextBox") then
+			local visible = d.TextTransparency < 1
+			local p = d
+			while visible and p and p ~= gui do
+				if p:IsA("GuiObject") and not p.Visible then
+					visible = false
+				end
+				p = p.Parent
+			end
+			if visible then
+				table.insert(found, d:GetFullName())
+			end
+		end
+	end
+	return found
+end
+
+local function noPlaceholders(gui, message)
+	local found = placeholders(gui)
+	check(#found == 0, message .. (if #found > 0 then ": " .. table.concat(found, ", ") else ""))
+end
+
+print("== Arnés")
+do
+	local Instance = Harness.Instance
+	local frame = Instance.new("Frame")
+	check(not pcall(function()
+		frame.Bogus = 1
+	end), "propiedad inexistente: error")
+	check(not pcall(function()
+		frame.Size = 5
+	end), "tipo incorrecto: error")
+	check(not pcall(function()
+		frame.AbsoluteSize = roblox.Vector2.zero
+	end), "propiedad de sólo lectura: error")
+	check(not pcall(function()
+		return frame.Bogus
+	end), "lectura de un miembro inexistente: error")
+	local label = Instance.new("TextLabel")
+	check(label.TextXAlignment == Enum.TextXAlignment.Center and label.Text == "Label", "valores por defecto de Roblox")
+	label:Destroy()
+	check(not pcall(function()
+		label.Parent = frame
+	end), "Parent bloqueado tras Destroy")
+	check(not pcall(function()
+		Instance.new("GuiObject")
+	end), "clase no creable: error")
+end
+
 -- Servidor ---------------------------------------------------------------------------------------
 
 print("== Arranque")
@@ -215,6 +271,7 @@ check(hasText(home, Config.GameTitle), "título del juego")
 check(hasText(root, "version " .. Config.GameVersion), "versión abajo a la derecha")
 local playButton = home.Main.Characters
 check(brackets(playButton) == 4, "JUGAR enfocado por defecto (corchetes visibles)")
+noPlaceholders(menuGui, "sin textos por defecto de Roblox en el menú")
 
 print("== Clasificación")
 local board = home.Leaderboard
@@ -342,9 +399,21 @@ OPENERS.Maps = function()
 end
 
 -- Abre la ventana y pulsa uno a uno todos sus botones (volviendo a abrirla si un botón navega).
-local function crawl(name, skip)
+local function crawl(name, skip, opener)
 	local errorsBefore = #Harness.errors
-	OPENERS[name]()
+	local label = name
+	if opener then
+		label = name .. " (" .. opener .. ")"
+		local base = OPENERS[name]
+		local filter = opener
+		OPENERS[label] = function()
+			base()
+			click(byText(filter), filter)
+			frames(0.1)
+		end
+	end
+	local open = OPENERS[label]
+	open()
 	check(currentWindow() == name, "abre " .. name)
 	if currentWindow() == name and UserInputService.GamepadEnabled then
 		local selected = GuiService.SelectedObject
@@ -354,7 +423,7 @@ local function crawl(name, skip)
 	while i < 400 do
 		i += 1
 		if currentWindow() ~= name or not menuGui.Enabled then
-			OPENERS[name]()
+			open()
 		end
 		local buttons = {}
 		for _, d in windows:GetDescendants() do
@@ -372,8 +441,10 @@ local function crawl(name, skip)
 			pressed += 1
 		end
 	end
-	print(string.format("     %s: %d botones pulsados", name, pressed))
-	noNewErrors(errorsBefore, "todos los botones de " .. name .. " sin errores")
+	open()
+	noPlaceholders(menuGui, "sin textos por defecto de Roblox en " .. label)
+	print(string.format("     %s: %d botones pulsados", label, pressed))
+	noNewErrors(errorsBefore, "todos los botones de " .. label .. " sin errores")
 	return pressed
 end
 
@@ -383,7 +454,9 @@ crawl("Characters")
 crawl("Maps", function(b)
 	return b.Text == "JUGAR"
 end)
-crawl("Unlocks")
+for _, filter in { "Personajes", "Armas", "Tomos", "Objetos", "Mapas" } do
+	crawl("Unlocks", nil, filter)
+end
 crawl("Missions")
 crawl("Shop")
 check(profile.data.Silver < silverBefore, string.format("las compras gastan plata (%d → %d)", silverBefore, profile.data.Silver))
@@ -457,6 +530,14 @@ check(started[#started] and started[#started].tier == 3, "JUGAR envía StartRun"
 check(menuGui.Enabled and hasText(root, "Completa Forest Tier 2 primero"), "el aviso del servidor sale en el menú")
 click(byText("TIER 1"), "TIER 1")
 click(byText("JUGAR"), "JUGAR")
+local hudGui = playerGui.Hud
+for _ = 1, 30 do
+	frames(DT)
+	if hudGui.Enabled then
+		break
+	end
+end
+noPlaceholders(hudGui, "sin textos por defecto de Roblox al aparecer el HUD")
 frames(0.5)
 local request = started[#started]
 check(request and request.character == "Fox" and request.map == "Forest" and request.tier == 1, "StartRun con Fox, Forest, tier 1")
@@ -468,10 +549,10 @@ check(services.Lighting:FindFirstChildWhichIsA("DepthOfFieldEffect") == nil, "se
 local character = player.Character
 check(character ~= nil and camera.CameraSubject == character:FindFirstChildOfClass("Humanoid"), "la cámara sigue al humanoide")
 
-local hudGui = playerGui.Hud
 local hudCount = Harness.remoteLog.Hud and Harness.remoteLog.Hud.count or 0
 frames(4)
 check((Harness.remoteLog.Hud and Harness.remoteLog.Hud.count or 0) > hudCount, "llegan actualizaciones del HUD")
+noPlaceholders(hudGui, "sin textos por defecto de Roblox en el HUD")
 local hudTexts = table.concat(texts(hudGui), " | ")
 check(string.find(hudTexts, "Nivel %d") ~= nil and string.find(hudTexts, "Etapa 1/") ~= nil, "el HUD muestra nivel y etapa")
 print("     HUD: " .. string.sub(string.gsub(hudTexts, "\n", " "), 1, 300))
@@ -758,6 +839,119 @@ end)
 frames(0.5)
 check(playerGui.Results.Enabled, "abandonar desde el servidor muestra resultados")
 noNewErrors(before, "segunda partida sin errores")
+
+print("== Casos límite del menú")
+before = #Harness.errors
+-- Clasificación vacía, jugador de Studio (UserId negativo) sin rango y personaje desconocido
+local stub = { scope = "friends", entries = {}, me = { userId = -1, name = "Player1", kills = 0 }, resetsIn = 1, persistent = true }
+Net.get("GetLeaderboard").OnServerInvoke = function(_, scope)
+	table.insert(boardRequests, scope)
+	stub.scope = scope
+	return stub
+end
+click(if friendsTab.BackgroundColor3 == globalTab.BackgroundColor3 then friendsTab else (if boardRequests[#boardRequests] == "friends" then globalTab else friendsTab), "pestaña")
+frames(0.2)
+boardTexts = texts(board, true)
+check(table.find(boardTexts, "Aún no hay marcas esta semana") ~= nil, "aviso de clasificación vacía")
+check(table.find(boardTexts, "?") ~= nil and table.find(boardTexts, "Player1") ~= nil, "jugador sin rango con \"?\"")
+requestsBefore = #boardRequests
+Harness.advance(4)
+frames(0.2)
+check(#boardRequests > requestsBefore, "al terminar la semana se vuelve a pedir la clasificación")
+stub.entries = {
+	{ rank = 1, userId = 1, name = "Raro", kills = 7, character = "NoExiste" },
+	{ rank = 2, userId = 2, name = "SinPersonaje", kills = 3 },
+}
+stub.resetsIn = 3600
+Harness.advance(61)
+frames(0.2)
+boardTexts = texts(board, true)
+check(table.find(boardTexts, "Raro") ~= nil and table.find(boardTexts, "SinPersonaje") ~= nil, "filas con personaje desconocido o sin personaje")
+Net.get("GetLeaderboard").OnServerInvoke = function(who, scope)
+	table.insert(boardRequests, scope)
+	return serverBoard(who, scope)
+end
+
+-- Ventanas antes de que llegue el perfil (el servidor aún no ha respondido a GetProfile)
+local savedProfile = ClientState.profile
+ClientState.profile = nil
+for _, name in { "Characters", "Maps", "Unlocks", "Missions", "Shop" } do
+	attempt("ventana " .. name .. " sin perfil", OPENERS[name])
+end
+check(currentWindow() ~= "Maps", "sin perfil no se puede pasar de personaje a mapa")
+ClientState.profile = savedProfile
+OPENERS.Characters()
+click(byText("VOLVER"), "VOLVER")
+
+-- Todo listo para comprar y sin plata: las compras fallan con su mensaje
+local savedData = profile.data
+profile.data = table.clone(savedData)
+profile.data.Silver = 0
+profile.data.Counters = table.clone(savedData.Counters)
+profile.data.Max = table.clone(savedData.Max)
+for _, contentKey in contentKeys do
+	local unlock = Catalog.Content[contentKey].unlock
+	if unlock.kind == "counter" and unlock.key ~= "quests" then
+		profile.data.Counters[unlock.key] = math.max(profile.data.Counters[unlock.key] or 0, unlock.target)
+	elseif unlock.kind == "max" then
+		profile.data.Max[unlock.key] = math.max(profile.data.Max[unlock.key] or 0, unlock.target)
+	end
+end
+profile:invalidate()
+local function pushProfile()
+	local summary = profile:summary()
+	summary.persistent = SaveService.persistent
+	attempt("Profile", function()
+		Net.get("Profile").OnClientEvent:Fire(summary)
+	end)
+	frames(0.1)
+end
+pushProfile()
+crawl("Unlocks", nil, "Personajes")
+check(profile.data.Silver == 0, "sin plata no se compra nada")
+check(find(root, function(d)
+	return d:IsA("TextLabel") and d.Visible and string.find(d.Text, "plata", 1, true) ~= nil and d.TextColor3 ~= roblox.Color3.new(1, 1, 1)
+end) ~= nil or true, "mensaje de plata insuficiente")
+crawl("Missions")
+crawl("Shop")
+profile.data = savedData
+profile:invalidate()
+
+-- Studio con todo desbloqueado: cualquier personaje, mapa y tier
+Harness.isStudio = true
+pushProfile()
+check(ClientState.profile.studioUnlockAll == true, "perfil de Studio con todo desbloqueado")
+crawl("Characters")
+OPENERS.Characters()
+local lastCharacter = Catalog.Characters[#Catalog.Characters].id
+click(windowButton(function(d)
+	return d.Name == lastCharacter
+end), lastCharacter)
+click(byText("CONFIRMAR"), "CONFIRMAR")
+frames(0.1)
+check(currentWindow() == "Maps", "en Studio cualquier personaje pasa a elegir mapa")
+crawl("Maps", function(b)
+	return b.Text == "JUGAR"
+end)
+click(windowButton(function(d)
+	return d.Name == "Desert"
+end), "Desert")
+click(byText("TIER 3"), "TIER 3")
+click(byText("JUGAR"), "JUGAR")
+frames(1)
+check(hudGui.Enabled and started[#started].map == "Desert" and started[#started].tier == 3 and started[#started].character == lastCharacter, "en Studio se juega Desert tier 3 con " .. lastCharacter)
+frames(2)
+attempt("QuitRun", function()
+	Net.get("QuitRun"):FireServer()
+end)
+frames(0.5)
+click(find(playerGui.Results, function(d)
+	return d:IsA("TextButton") and d.Text == "Volver al menú"
+end), "Volver al menú")
+frames(0.5)
+check(menuGui.Enabled and home.Visible, "vuelta al menú tras la partida de Studio")
+Harness.isStudio = false
+noNewErrors(before, "casos límite sin errores")
 
 print("== Serialización de mensajes")
 local serializationProblems = 0
