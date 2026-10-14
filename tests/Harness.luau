@@ -64,9 +64,12 @@ end
 
 local clock = 0
 local queue = {}
+local sequence = 0
 
+-- A igual hora, las tareas se reanudan en el orden en que se programaron (como los mensajes de red).
 local function schedule(at, thread, ...)
-	table.insert(queue, { at = at, thread = thread, args = table.pack(...) })
+	sequence += 1
+	table.insert(queue, { at = at, order = sequence, thread = thread, args = table.pack(...) })
 end
 
 -- Error en un hilo: sin manejador se propaga (pruebas del servidor); con Harness.onError se
@@ -122,7 +125,10 @@ function Harness.advance(dt)
 		end
 	end
 	table.sort(due, function(a, b)
-		return a.at < b.at
+		if a.at ~= b.at then
+			return a.at < b.at
+		end
+		return a.order < b.order
 	end)
 	for _, entry in due do
 		if coroutine.status(entry.thread) == "suspended" then

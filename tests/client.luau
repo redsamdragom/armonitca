@@ -272,6 +272,7 @@ check(hasText(root, "version " .. Config.GameVersion), "versión abajo a la dere
 local playButton = home.Main.Characters
 check(brackets(playButton) == 4, "JUGAR enfocado por defecto (corchetes visibles)")
 noPlaceholders(menuGui, "sin textos por defecto de Roblox en el menú")
+check(hasText(root, "Aviso: el guardado no está disponible (activa el acceso a la API en Studio)."), "aviso de guardado no disponible")
 
 print("== Clasificación")
 local board = home.Leaderboard
@@ -398,7 +399,8 @@ OPENERS.Maps = function()
 	frames(0.1)
 end
 
--- Abre la ventana y pulsa uno a uno todos sus botones (volviendo a abrirla si un botón navega).
+-- Pulsa uno a uno todos los botones de una ventana; antes de cada pulsación la vuelve a abrir
+-- desde la pantalla principal, así cada botón se prueba en el estado inicial de la ventana.
 local function crawl(name, skip, opener)
 	local errorsBefore = #Harness.errors
 	local label = name
@@ -422,9 +424,7 @@ local function crawl(name, skip, opener)
 	local pressed, i = 0, 0
 	while i < 400 do
 		i += 1
-		if currentWindow() ~= name or not menuGui.Enabled then
-			open()
-		end
+		open()
 		local buttons = {}
 		for _, d in windows:GetDescendants() do
 			if d:IsA("GuiButton") then
@@ -553,6 +553,13 @@ local hudCount = Harness.remoteLog.Hud and Harness.remoteLog.Hud.count or 0
 frames(4)
 check((Harness.remoteLog.Hud and Harness.remoteLog.Hud.count or 0) > hudCount, "llegan actualizaciones del HUD")
 noPlaceholders(hudGui, "sin textos por defecto de Roblox en el HUD")
+local realDots = 0
+for _, d in hudGui:GetDescendants() do
+	if d.Name == "Dot" then
+		realDots += 1
+	end
+end
+check(realDots > 0, string.format("marcadores reales del mapa en el minimapa (%d)", realDots))
 local hudTexts = table.concat(texts(hudGui), " | ")
 check(string.find(hudTexts, "Nivel %d") ~= nil and string.find(hudTexts, "Etapa 1/") ~= nil, "el HUD muestra nivel y etapa")
 print("     HUD: " .. string.sub(string.gsub(hudTexts, "\n", " "), 1, 300))
@@ -712,7 +719,7 @@ check(banish.Text == "Elige qué excluir", "modo Banish")
 click(cardsOf()[2], "carta 2 en modo Banish")
 frames(0.1)
 check(modalChoices[#modalChoices] and modalChoices[#modalChoices].action == "banish" and modalChoices[#modalChoices].index == 2, "Banish envía la carta elegida")
-click(byText("Refresh (1)") or find(modalGui, function(d)
+click(find(modalGui, function(d)
 	return d:IsA("TextButton") and d.Text == "Refresh (1)"
 end), "Refresh")
 frames(0.1)
@@ -912,22 +919,51 @@ local function pushProfile()
 	frames(0.1)
 end
 pushProfile()
-local statusDbg = root:GetChildren()[#root:GetChildren()]
-statusDbg:GetPropertyChangedSignal("Text"):Connect(function() print("DBG set", statusDbg.Text, debug.traceback()) end)
 crawl("Unlocks", nil, "Personajes")
 check(profile.data.Silver == 0, "sin plata no se compra nada")
-print("DBG status", root:GetChildren()[#root:GetChildren()].Text)
 check(hasText(root, "Plata insuficiente"), "aviso de plata insuficiente")
+-- Los mapas cuestan 0: la compra sale bien y después llega el perfil nuevo del servidor; el
+-- mensaje de la compra no debe quedar tapado por otro aviso
+OPENERS.Unlocks()
+click(byText("Mapas"), "Mapas")
+local freeMap = windowButton(function(d)
+	return string.sub(d.Text, 1, 7) == "COMPRAR"
+end)
+check(freeMap ~= nil, "mapa listo para comprar")
+if freeMap then
+	click(freeMap, "COMPRAR mapa")
+	frames(0.3)
+	check(find(root, function(d)
+		return d:IsA("TextLabel") and string.find(d.Text, " comprado$") ~= nil
+	end) ~= nil, "el mensaje de compra sigue a la vista tras recibir el perfil")
+end
 crawl("Missions")
 crawl("Shop")
 profile.data = savedData
 profile:invalidate()
+
+-- Sin mando conectado: las ventanas y las elecciones no tocan la selección
+UserInputService._props.GamepadEnabled = false
+GuiService.SelectedObject = nil
+for _, name in { "Characters", "Settings", "Quit" } do
+	attempt("ventana " .. name .. " sin mando", OPENERS[name])
+end
+click(byText("VOLVER"), "VOLVER")
+modal(levelUp)
+frames(0.4)
+click(cardsOf()[2], "carta 2 sin mando")
+frames(0.1)
+check(GuiService.SelectedObject == nil and modalChoices[#modalChoices].index == 2, "sin mando no se fuerza ninguna selección")
+UserInputService._props.GamepadEnabled = true
 
 -- Studio con todo desbloqueado: cualquier personaje, mapa y tier
 Harness.isStudio = true
 pushProfile()
 check(ClientState.profile.studioUnlockAll == true, "perfil de Studio con todo desbloqueado")
 crawl("Characters")
+crawl("Maps", function(b)
+	return b.Text == "JUGAR"
+end)
 OPENERS.Characters()
 local lastCharacter = Catalog.Characters[#Catalog.Characters].id
 click(windowButton(function(d)
@@ -936,16 +972,12 @@ end), lastCharacter)
 click(byText("CONFIRMAR"), "CONFIRMAR")
 frames(0.1)
 check(currentWindow() == "Maps", "en Studio cualquier personaje pasa a elegir mapa")
-crawl("Maps", function(b)
-	return b.Text == "JUGAR"
-end)
 click(windowButton(function(d)
 	return d.Name == "Desert"
 end), "Desert")
 click(byText("TIER 3"), "TIER 3")
 click(byText("JUGAR"), "JUGAR")
 frames(1)
-print("DBG", hudGui.Enabled, started[#started].map, started[#started].tier, started[#started].character, root:GetChildren()[#root:GetChildren()].Text)
 check(hudGui.Enabled and started[#started].map == "Desert" and started[#started].tier == 3 and started[#started].character == lastCharacter, "en Studio se juega Desert tier 3 con " .. lastCharacter)
 frames(2)
 attempt("QuitRun", function()
@@ -959,6 +991,24 @@ frames(0.5)
 check(menuGui.Enabled and home.Visible, "vuelta al menú tras la partida de Studio")
 Harness.isStudio = false
 noNewErrors(before, "casos límite sin errores")
+
+print("== Conexiones")
+local function connected(signal)
+	local n = 0
+	for _, c in signal.handlers do
+		if c.Connected then
+			n += 1
+		end
+	end
+	return n
+end
+frames(0.1)
+-- En el menú: la escena (cámara) y el HUD (minimapa) escuchan RenderStepped; las vistas de los
+-- personajes de ventanas ya cerradas se desconectan solas.
+local renderConnections = connected(RunService.RenderStepped)
+check(renderConnections == 2, string.format("sin conexiones de RenderStepped perdidas (%d)", renderConnections))
+local heartbeatConnections = connected(RunService.Heartbeat)
+check(heartbeatConnections == 2, string.format("sin conexiones de Heartbeat perdidas (%d)", heartbeatConnections))
 
 print("== Serialización de mensajes")
 local serializationProblems = 0

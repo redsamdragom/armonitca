@@ -16,6 +16,8 @@ jobs:
           echo "$HOME/lune" >> "$GITHUB_PATH"
       - name: Simulación del servidor
         run: lune run tests/simulate
+      - name: Prueba de humo del cliente
+        run: lune run tests/client
       - name: Matriz de correspondencia al día
         run: |
           lune run tests/matrix

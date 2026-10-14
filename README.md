@@ -58,10 +58,11 @@ En Studio, `Config.Debug.StudioUnlockAll` desbloquea todo el contenido para pode
 
 ```bash
 lune run tests/simulate   # partidas reales simuladas: 21 personajes, 30 armas, 85 objetos, jefes, etapas, guardado
+lune run tests/client     # prueba de humo del cliente: menú, ventanas, partida, HUD, elecciones, pausa y resultados
 lune run tests/matrix     # regenera docs/MATRIZ.md
 ```
 
-`tests/Harness.luau` simula lo que el servidor usa de Roblox: instancias, servicios, `task` con reloj simulado y suelo plano. Las pruebas también comprueban que todo lo que se envía al cliente sea serializable. GitHub Actions las ejecuta en cada push.
+`tests/Harness.luau` simula lo que el juego usa de Roblox: instancias, servicios, `task` con reloj simulado y suelo plano. En la prueba del cliente corren a la vez el servidor y el cliente reales; las propiedades de las instancias se validan con la base de datos de reflexión de Lune (miembros inexistentes, de sólo lectura o con un tipo incorrecto fallan como en Roblox) y los mensajes de red llegan diferidos y en orden. Las pruebas también comprueban que todo lo que se envía entre cliente y servidor sea serializable. GitHub Actions las ejecuta en cada push.
 
 ## Estructura
 
@@ -83,7 +84,7 @@ src/client/
   ClientState.luau       Perfil, opciones y teclas
   Movement.luau          Saltos extra, planeo, escalada, baja gravedad y mira
   Ui/                    Menu, Hud, Modal, Pause, Results, DamageNumbers, Preview, Theme
-tests/                   Harness, simulate, matrix (Lune)
+tests/                   Harness, simulate, client, matrix (Lune)
 docs/MATRIZ.md           Matriz de correspondencia con la referencia
 ```
 

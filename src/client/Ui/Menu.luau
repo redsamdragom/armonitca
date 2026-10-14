@@ -1619,7 +1619,9 @@ function Menu.init()
 
 	ClientState.onProfile(function(profile)
 		applyScale()
-		if profile.persistent == false then
+		-- El aviso no tapa otro mensaje: tras una compra, el perfil nuevo llega justo después del
+		-- resultado y lo borraría al instante.
+		if profile.persistent == false and statusLabel.Text == "" then
 			setStatus("Aviso: el guardado no está disponible (activa el acceso a la API en Studio).", C.Bad)
 		end
 		if gui.Enabled then
