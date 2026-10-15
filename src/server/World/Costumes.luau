@@ -1,8 +1,41 @@
--- Atuendos provisionales de los personajes: primitivas soldadas al avatar.
--- Es una RECONSTRUCCIÓN a partir de las descripciones de los retratos, no las mallas originales;
--- deben sustituirse por modelos hechos a mano (ver docs/MATRIZ.md).
+-- Aspecto del personaje en la partida.
+-- Con diseño hecho a mano (src/shared/Personajes/<Id>.rbxm) el jugador aparece con ese modelo:
+-- se pone como StarterPlayer.StarterCharacter justo antes de LoadCharacter, así Roblox le añade
+-- sus animaciones. Sin diseño, se usa el avatar con el atuendo provisional de primitivas soldadas
+-- (una reconstrucción a partir de las descripciones, ver docs/MATRIZ.md).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterPlayer = game:GetService("StarterPlayer")
 
 local Costumes = {}
+
+-- Diseño del personaje, o nil si todavía no tiene.
+function Costumes.design(characterId: string): Model?
+	local folder = ReplicatedStorage.Shared:FindFirstChild("Personajes")
+	local design = folder and folder:FindFirstChild(characterId)
+	if design and design:IsA("Model") and design:FindFirstChild("HumanoidRootPart") and design:FindFirstChildOfClass("Humanoid") then
+		return design
+	end
+	return nil
+end
+
+-- Prepara el siguiente LoadCharacter: con diseño lo deja como StarterCharacter (devuelve true);
+-- sin diseño quita el que hubiera, para volver al avatar del jugador.
+function Costumes.prepare(characterId: string): boolean
+	local old = StarterPlayer:FindFirstChild("StarterCharacter")
+	if old then
+		old:Destroy()
+	end
+	local design = Costumes.design(characterId)
+	if not design then
+		return false
+	end
+	local starter = design:Clone()
+	starter.Name = "StarterCharacter"
+	starter.PrimaryPart = starter:FindFirstChild("HumanoidRootPart") :: BasePart
+	starter.Parent = StarterPlayer
+	return true
+end
 
 local SHAPES = { Block = Enum.PartType.Block, Ball = Enum.PartType.Ball, Cylinder = Enum.PartType.Cylinder }
 

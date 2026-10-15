@@ -449,6 +449,7 @@ end
 
 function RunSession:spawnCharacter(position: Vector3)
 	local player = self.player
+	local designed = Costumes.prepare(self.character.id)
 	player:LoadCharacter()
 	local model = player.Character or player.CharacterAdded:Wait()
 	local humanoid = model:WaitForChild("Humanoid") :: Humanoid
@@ -462,7 +463,9 @@ function RunSession:spawnCharacter(position: Vector3)
 	humanoid.Health = 1e9
 	humanoid.UseJumpPower = false
 	humanoid.BreakJointsOnDeath = false
-	Costumes.apply(model, self.character)
+	if not designed then
+		Costumes.apply(model, self.character)
+	end
 	model:PivotTo(CFrame.new(position + Vector3.new(0, 5, 0)))
 	self.model = model
 	self.humanoid = humanoid

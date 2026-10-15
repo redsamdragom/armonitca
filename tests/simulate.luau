@@ -277,6 +277,16 @@ do
 	check((profile.data.Max.swarmSeconds or 0) > 0, "se registra el tiempo de Final Swarm")
 end
 
+print("== Diseños de personaje")
+do
+	local session = newSession("Fox")
+	check(session.model:GetAttribute("Diseno") == "Fox", "Fox aparece con su diseño (StarterCharacter)")
+	check(session.model:FindFirstChild("Costume") == nil, "con diseño no se añade el atuendo de primitivas")
+	local plain = newSession("Birdo", { unlockAll = true })
+	check(plain.model:GetAttribute("Diseno") == nil and plain.model:FindFirstChild("Costume") ~= nil, "sin diseño: avatar con el atuendo de primitivas")
+	check(Harness.services.StarterPlayer:FindFirstChild("StarterCharacter") == nil, "sin diseño no queda un StarterCharacter de otro personaje")
+end
+
 print("== Progreso de la cuenta")
 do
 	local player = Harness.addPlayer(999)

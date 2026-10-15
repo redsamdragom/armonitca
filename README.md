@@ -87,6 +87,25 @@ Las 23 imágenes de los tomos están en `assets/tomos/`. Cada archivo lleva el n
 
 Además, las 23 imágenes van incluidas en el propio juego (`src/shared/Data/TomeArt.luau`, generado con `python3 tools/generar_tomos.py`). Si un tomo no tiene ID o su imagen subida no carga, el juego dibuja esa copia incluida con un EditableImage, así que los tomos se ven sin subir nada. Si el EditableImage no está disponible, se ve un libro del color del tomo y Output lo avisa.
 
+## Diseños de los personajes
+
+Los modelos hechos a mano están en `src/shared/Personajes/<Id>.rbxm` (Rojo los mete en `ReplicatedStorage.Shared.Personajes`). Con diseño, el personaje aparece así en la partida (se usa como `StarterCharacter`, con las animaciones de Roblox) y en las vistas del menú; sin diseño, se usa el avatar con el atuendo de primitivas.
+
+| Diseño | Personaje |
+| --- | --- |
+| Lobo Mago | Fox (Zorro) |
+| Samurai de Hierro | Sir Oofie |
+| Esqueleto Skater | Calcium (Calcio) |
+| Toro Musculoso Voxel | Megachad |
+| Vikingo Voxel | Ogre (Ogro) |
+| Vaquero Espacial Voxel | CL4NK |
+| Guerrero Espartano Voxel | Athena (Atenea) |
+| Hawkeye Morado | Robinette (Robinetta) |
+| Lagartija Ancha con Lentes | Monke |
+| Gato Voxel Skater | Tony McZoom (Tony McVeloz) |
+
+Para importar diseños nuevos desde un lugar de Studio, añade su nombre a `MAPPING` en `tools/importar_personajes.luau` y ejecuta `lune run tools/importar_personajes <lugar.rbxl>` (hace falta Lune 0.11 o posterior). El script quita los scripts y herramientas, deja las patinetas soldadas bajo los pies y quita la colisión a las piezas de adorno.
+
 ## Estructura
 
 ```text

@@ -633,6 +633,21 @@ function Methods:GetPropertyChangedSignal(name)
 	end
 	return s
 end
+-- Copia profunda: propiedades (sin eventos ni Parent), atributos e hijos.
+function Methods:Clone()
+	local copy = new(rawget(self, "_class"))
+	for k, v in self._props do
+		if k ~= "Parent" and k ~= "Changed" and not EVENTS[k] then
+			copy._props[k] = v
+		end
+	end
+	copy._attributes = table.clone(rawget(self, "_attributes"))
+	for _, child in self._children do
+		child:Clone().Parent = copy
+	end
+	return copy
+end
+
 function Methods:SetAttribute(name, value)
 	self._attributes[name] = value
 end
@@ -834,6 +849,12 @@ function Methods:LoadCharacter()
 		old:Destroy()
 	end
 	local model = new("Model", { Name = self.Name })
+	-- Con StarterPlayer.StarterCharacter, Roblox usa ese modelo: se marca con el diseño de origen
+	local starterPlayer = Harness.services and Harness.services.StarterPlayer
+	local starter = starterPlayer and starterPlayer:FindFirstChild("StarterCharacter")
+	if starter then
+		model:SetAttribute("Diseno", starter:GetAttribute("Diseno") or starter.Name)
+	end
 	local root = new("Part", { Name = "HumanoidRootPart", CFrame = CF.new(0, 3, 0), Parent = model })
 	new("Part", { Name = "Head", CFrame = CF.new(0, 4.5, 0), Parent = model })
 	new("Part", { Name = "UpperTorso", CFrame = CF.new(0, 3, 0), Parent = model })
@@ -875,6 +896,7 @@ function Harness.build(root)
 		RunService = new("RunService", { Name = "RunService" }),
 		Debris = new("Debris", { Name = "Debris" }),
 		DataStoreService = new("DataStoreService", { Name = "DataStoreService" }),
+		StarterPlayer = new("StarterPlayer", { Name = "StarterPlayer", Parent = game }),
 		ContentProvider = new("ContentProvider", { Name = "ContentProvider" }),
 		AssetService = new("AssetService", { Name = "AssetService" }),
 		Workspace = workspace,
@@ -978,6 +1000,17 @@ function Harness.build(root)
 			local path = dir .. "/" .. name
 			if fs.isDir(path) then
 				tree(path, new("Folder", { Name = name, Parent = parent }), client)
+			elseif string.sub(name, -5) == ".rbxm" then
+				-- Modelo de Roblox (diseño de personaje): el arnés no lee el formato binario y pone
+				-- en su lugar un rig mínimo con el mismo nombre
+				local base = string.sub(name, 1, -6)
+				local model = new("Model", { Name = base, Parent = parent })
+				model:SetAttribute("Diseno", base)
+				new("Part", { Name = "HumanoidRootPart", CFrame = CF.new(0, 3, 0), Size = V3.new(2, 2, 1), Parent = model })
+				new("Part", { Name = "Torso", CFrame = CF.new(0, 3, 0), Size = V3.new(2, 2, 1), Parent = model })
+				new("Part", { Name = "Head", CFrame = CF.new(0, 4.5, 0), Size = V3.new(2, 1, 1), Parent = model })
+				new("Part", { Name = "Left Leg", CFrame = CF.new(-0.5, 1, 0), Size = V3.new(1, 2, 1), Parent = model })
+				new("Humanoid", { Name = "Humanoid", Parent = model })
 			elseif string.sub(name, -5) == ".luau" then
 				local base = string.sub(name, 1, -6)
 				local class = "ModuleScript"
@@ -1129,7 +1162,7 @@ function Harness.setupClient(userId)
 		return inst
 	end
 
-	local starterPlayer = new("StarterPlayer", { Name = "StarterPlayer", Parent = game })
+	local starterPlayer = services.StarterPlayer
 	local scripts = new("StarterPlayerScripts", { Name = "StarterPlayerScripts", Parent = starterPlayer })
 	local client = new("Folder", { Name = "Client", Parent = scripts })
 	Harness.tree(Harness.root .. "/src/client", client, true)

@@ -1,4 +1,5 @@
--- Maniquí de bloques con el atuendo del personaje para la vista giratoria del selector.
+-- Vista del personaje para el menú: su diseño hecho a mano (src/shared/Personajes) o, si aún no
+-- tiene, el maniquí de bloques con su atuendo de primitivas.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Catalog = require(ReplicatedStorage.Shared.Catalog)
@@ -20,7 +21,58 @@ local function block(model: Model, name: string, size: Vector3, cf: CFrame, colo
 	return p
 end
 
+-- Altura (en studs) a la que se ajustan los diseños para que quepan en las vistas del menú, con
+-- los pies en el suelo y el pivote 3 studs por encima, como el maniquí.
+local DESIGN_HEIGHT = 6
+
+-- Modelo hecho a mano del personaje (src/shared/Personajes), o nil si todavía no tiene.
+function Preview.design(characterId: string): Model?
+	local folder = ReplicatedStorage.Shared:FindFirstChild("Personajes")
+	local design = folder and folder:FindFirstChild(characterId)
+	if design and design:IsA("Model") and design:FindFirstChild("HumanoidRootPart") then
+		return design
+	end
+	return nil
+end
+
+-- Copia estática del diseño para un ViewportFrame: anclado, mirando a -Z, con los pies en y = 0 y el
+-- pivote en (0, 3, 0).
+local function buildDesign(design: Model): Model
+	local model = design:Clone()
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart
+	local bottom, top = math.huge, -math.huge
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			bottom = math.min(bottom, d.Position.Y - d.Size.Y / 2)
+			top = math.max(top, d.Position.Y + d.Size.Y / 2)
+		elseif d:IsA("Humanoid") then
+			d.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		end
+	end
+	root.Transparency = 1
+	model.PrimaryPart = nil
+	local rotation = root.CFrame - root.Position
+	model.WorldPivot = CFrame.new(root.Position.X, bottom, root.Position.Z) * rotation
+	local height = top - bottom
+	if height > 0 then
+		local scale = math.clamp(DESIGN_HEIGHT / height, 0.4, 1.5)
+		pcall(function()
+			model:ScaleTo(scale)
+		end)
+	end
+	-- Pivote 3 studs sobre los pies, como el del maniquí
+	model.WorldPivot = model.WorldPivot * CFrame.new(0, 3, 0)
+	model:PivotTo(CFrame.new(0, 3, 0))
+	return model
+end
+
 function Preview.build(characterId: string): Model
+	local design = Preview.design(characterId)
+	if design then
+		return buildDesign(design)
+	end
 	local character = Catalog.Character[characterId]
 	local model = Instance.new("Model")
 	local skin = Color3.fromRGB(230, 200, 170)

@@ -775,9 +775,9 @@ local function mountModel(content: Frame, id: string)
 		end
 		t += dt
 		yaw = drag + math.sin(t * 0.8) * 0.12
-		model:PivotTo(CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi + yaw, 0))
+		model:PivotTo(CFrame.new(0, 3, 0) * CFrame.Angles(0, yaw, 0))
 	end)
-	model:PivotTo(CFrame.new(0, 3, 0) * CFrame.Angles(0, math.pi, 0))
+	model:PivotTo(CFrame.new(0, 3, 0))
 end
 
 WINDOWS.Characters = {

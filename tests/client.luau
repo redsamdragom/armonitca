@@ -474,6 +474,13 @@ do
 	check(cells == #Catalog.Characters, string.format("la cuadrícula muestra los %d personajes", cells))
 	check(screen:FindFirstChild("Roster", true) ~= nil and screen:FindFirstChild("Info", true) ~= nil and screen:FindFirstChild("HatPanel", true) ~= nil, "paneles de cuadrícula, ficha y sombrero")
 	check(screen:FindFirstChild("Model", true) ~= nil, "personaje en 3D en el centro")
+	local shown = nil
+	for _, d in screen:FindFirstChild("Model", true):GetChildren() do
+		if d:IsA("Model") then
+			shown = d
+		end
+	end
+	check(shown ~= nil and shown:GetAttribute("Diseno") == "Fox", "la vista 3D usa el diseño de Zorro")
 	check(hasText(screen, "SELECCIÓN DE PERSONAJE") and hasText(screen, "Zorro") and hasText(screen, "Bastón de Fuego") and hasText(screen, "Bendición de Suerte"), "textos en español de la ficha de Zorro")
 	check(hasText(screen, "CONFIRMAR") and hasText(screen, "Sin sombrero") and hasText(screen, "Skin"), "CONFIRMAR, sombrero y skins")
 	local locked = find(screen, function(d)
