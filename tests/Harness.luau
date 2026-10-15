@@ -871,8 +871,18 @@ function Harness.build(root)
 		RunService = new("RunService", { Name = "RunService" }),
 		Debris = new("Debris", { Name = "Debris" }),
 		DataStoreService = new("DataStoreService", { Name = "DataStoreService" }),
+		ContentProvider = new("ContentProvider", { Name = "ContentProvider" }),
 		Workspace = workspace,
 	}
+	-- Carga de imágenes: todas cargan salvo las de Harness.failedAssets[id] = true
+	Harness.failedAssets = {}
+	services.ContentProvider.PreloadAsync = function(_, list, callback)
+		for _, id in list do
+			if callback then
+				callback(id, if Harness.failedAssets[id] then roblox.Enum.AssetFetchStatus.Failure else roblox.Enum.AssetFetchStatus.Success)
+			end
+		end
+	end
 	services.RunService.IsServer = function()
 		return true
 	end
@@ -1034,6 +1044,11 @@ function Harness.build(root)
 			return typeof(v)
 		end,
 		warn = function(...)
+			local parts = {}
+			for i = 1, select("#", ...) do
+				table.insert(parts, tostring((select(i, ...))))
+			end
+			table.insert(Harness.warnings, table.concat(parts, " "))
 			print("[warn]", ...)
 		end,
 	}
@@ -1231,5 +1246,6 @@ end
 Harness.Signal = Signal
 Harness.isInstance = isInstance
 Harness.isStudio = false
+Harness.warnings = {}
 
 return Harness

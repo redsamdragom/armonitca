@@ -534,10 +534,30 @@ do
 	click(windowButton(function(d)
 		return d.Name == "Agility"
 	end), "Agility")
+	frames(0.1)
 	check(find(windows, function(d)
-		return d:IsA("ImageLabel") and d.Image == "rbxassetid://123"
+		return d:IsA("ImageLabel") and d.Image == "rbxassetid://123" and d.Visible
 	end) ~= nil, "el tomo con ID muestra su imagen")
+	-- Un ID que no carga (equivocado o en moderación): se ve el libro dibujado y se avisa en Output
+	Images.Tomes.Golden = "rbxassetid://999"
+	Harness.failedAssets["rbxassetid://999"] = true
+	local warningsBefore = #Harness.warnings
+	click(windowButton(function(d)
+		return d.Name == "Golden"
+	end), "Golden")
+	frames(0.1)
+	local goldenCell = windowButton(function(d)
+		return d.Name == "Golden"
+	end)
+	local fallback = goldenCell and goldenCell:FindFirstChild("Fallback", true)
+	check(fallback ~= nil and fallback.Visible, "si la imagen no carga se ve el libro de color en lugar de un hueco")
+	local warned = false
+	for i = warningsBefore + 1, #Harness.warnings do
+		warned = warned or string.find(Harness.warnings[i], "rbxassetid://999", 1, true) ~= nil
+	end
+	check(warned, "aviso en Output con el ID que no carga")
 	Images.Tomes.Agility = ""
+	Images.Tomes.Golden = ""
 	click(windowButton(function(d)
 		return d.Name == "Close"
 	end), "X")
