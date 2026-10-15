@@ -38,29 +38,29 @@ Images.Silhouettes = {}
 -- Icono de cada tomo (Desbloqueos, cartas de subida de nivel y HUD). Las imágenes están en
 -- assets/tomos/: súbelas todas a la vez (Asset Manager → Bulk Import) y pega aquí cada ID.
 Images.Tomes = {
-	Agility = "", -- assets/tomos/tomo-01-Agility.png
-	Cooldown = "", -- assets/tomos/tomo-03-Cooldown.png
-	Damage = "", -- assets/tomos/tomo-11-Damage.png
-	Evasion = "", -- assets/tomos/tomo-14-Evasion.png
-	Golden = "", -- assets/tomos/tomo-02-Golden.png
-	Health = "", -- assets/tomos/tomo-07-Health.png
-	Knockback = "", -- assets/tomos/tomo-12-Knockback.png
-	Precision = "", -- assets/tomos/tomo-06-Precision.png
-	ProjectileSpeed = "", -- assets/tomos/tomo-19-ProjectileSpeed.png
-	Regen = "", -- assets/tomos/tomo-09-Regen.png
-	Shield = "", -- assets/tomos/tomo-10-Shield.png
-	Silver = "", -- assets/tomos/tomo-21-Silver.png
-	Size = "", -- assets/tomos/tomo-05-Size.png
-	Armor = "", -- assets/tomos/tomo-04-Armor.png
-	Attraction = "", -- assets/tomos/tomo-15-Attraction.png
-	Bloody = "", -- assets/tomos/tomo-16-Bloody.png
-	Chaos = "", -- assets/tomos/tomo-23-Chaos.png
-	Cursed = "", -- assets/tomos/tomo-13-Cursed.png
-	Duration = "", -- assets/tomos/tomo-18-Duration.png
-	Luck = "", -- assets/tomos/tomo-17-Luck.png
-	Quantity = "", -- assets/tomos/tomo-08-Quantity.png
-	Thorns = "", -- assets/tomos/tomo-20-Thorns.png
-	XP = "", -- assets/tomos/tomo-22-XP.png
+	Agility = "rbxassetid://11157781625231", -- assets/tomos/tomo-01-Agility.png
+	Cooldown = "rbxassetid://77976159467388", -- assets/tomos/tomo-03-Cooldown.png
+	Damage = "rbxassetid://70450206870886", -- assets/tomos/tomo-11-Damage.png
+	Evasion = "rbxassetid://124658411720980", -- assets/tomos/tomo-14-Evasion.png
+	Golden = "rbxassetid://11010394204995", -- assets/tomos/tomo-02-Golden.png
+	Health = "rbxassetid://13176387318398", -- assets/tomos/tomo-07-Health.png
+	Knockback = "rbxassetid://81792752440821", -- assets/tomos/tomo-12-Knockback.png
+	Precision = "rbxassetid://79414187169976", -- assets/tomos/tomo-06-Precision.png
+	ProjectileSpeed = "rbxassetid://100437287994279", -- assets/tomos/tomo-19-ProjectileSpeed.png
+	Regen = "rbxassetid://12858238182516", -- assets/tomos/tomo-09-Regen.png
+	Shield = "rbxassetid://77439551822330", -- assets/tomos/tomo-10-Shield.png
+	Silver = "rbxassetid://132475094248141", -- assets/tomos/tomo-21-Silver.png
+	Size = "rbxassetid://134251038935358", -- assets/tomos/tomo-05-Size.png
+	Armor = "rbxassetid://127143666424906", -- assets/tomos/tomo-04-Armor.png
+	Attraction = "rbxassetid://108446068535887", -- assets/tomos/tomo-15-Attraction.png
+	Bloody = "rbxassetid://76039974427160", -- assets/tomos/tomo-16-Bloody.png
+	Chaos = "rbxassetid://127504414031229", -- assets/tomos/tomo-23-Chaos.png
+	Cursed = "rbxassetid://105195574339171", -- assets/tomos/tomo-13-Cursed.png
+	Duration = "rbxassetid://133196844630087", -- assets/tomos/tomo-18-Duration.png
+	Luck = "rbxassetid://93866443058863", -- assets/tomos/tomo-17-Luck.png
+	Quantity = "rbxassetid://124335329207324", -- assets/tomos/tomo-08-Quantity.png
+	Thorns = "rbxassetid://108780448439095", -- assets/tomos/tomo-20-Thorns.png
+	XP = "rbxassetid://86968390639527", -- assets/tomos/tomo-22-XP.png
 }
 
 -- Color de la tapa de cada tomo (tomado de su imagen): el libro dibujado mientras no haya ID.
