@@ -166,7 +166,7 @@ local function buildMinimap(parent: Instance)
 	Theme.padding(legend, 8)
 	Theme.list(legend, nil, 2)
 	for kind, name in MARKER_NAMES do
-		sans({ Text = "● " .. name, TextSize = 16, TextColor3 = MARKER_COLOR[kind], Size = UDim2.new(1, 0, 0, 20), Parent = legend })
+		sans({ Text = "● " .. name, TextSize = 18, TextColor3 = MARKER_COLOR[kind], Size = UDim2.new(1, 0, 0, 20), Parent = legend })
 	end
 	refs.full, refs.fullArrow = full, fullArrow
 end
@@ -207,7 +207,7 @@ local function fillRow(row: Frame, list, icon: (holder: GuiObject, id: string) -
 		local cell = Theme.frame({ Name = entry.id, BackgroundTransparency = 1, Position = UDim2.fromOffset((i - 1) * (SLOT + SLOT_GAP), 0), Size = UDim2.fromOffset(SLOT, SLOT), ZIndex = 2, Parent = row })
 		cell:SetAttribute("Filled", true)
 		icon(Theme.frame({ BackgroundTransparency = 1, Position = UDim2.fromOffset(3, 2), Size = UDim2.new(1, -6, 1, -12), ZIndex = 2, Parent = cell }), entry.id)
-		outlined(label({ Name = "Level", Text = "LVL " .. entry.level, TextSize = 17, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.new(1, 4, 0, 18), ZIndex = 4, Parent = cell }), 1.5)
+		outlined(label({ Name = "Level", Text = "LVL " .. entry.level, TextSize = 19, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.new(1, 4, 0, 18), ZIndex = 4, Parent = cell }), 1.5)
 	end
 end
 
@@ -244,12 +244,12 @@ function Hud.init()
 	local hpBack = Theme.frame({ Name = "Health", BackgroundColor3 = Color3.fromRGB(14, 22, 30), Position = UDim2.fromOffset(22, 100), Size = UDim2.fromOffset(232, 26), Parent = root })
 	Theme.stroke(hpBack, Color3.fromRGB(0, 0, 0), 1)
 	refs.hpFill = Theme.frame({ Name = "Fill", BackgroundColor3 = HP_RED, Size = UDim2.fromScale(1, 1), Parent = hpBack })
-	refs.hpText = outlined(label({ Name = "Text", Text = "", TextSize = 24, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = hpBack }), 2)
+	refs.hpText = outlined(label({ Name = "Text", Text = "", TextSize = 27, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = hpBack }), 2)
 	local shBack = Theme.frame({ Name = "Shield", BackgroundColor3 = Color3.fromRGB(14, 22, 30), Position = UDim2.fromOffset(22, 128), Size = UDim2.fromOffset(232, 14), Visible = false, Parent = root })
 	refs.shFill = Theme.frame({ Name = "Fill", BackgroundColor3 = C.Shield, Size = UDim2.fromScale(1, 1), Parent = shBack })
-	refs.shText = outlined(sans({ Name = "Text", Text = "", TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = shBack }), 1)
+	refs.shText = outlined(sans({ Name = "Text", Text = "", TextSize = 15, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = shBack }), 1)
 	refs.shBack = shBack
-	refs.momentum = outlined(sans({ Name = "Momentum", Text = "", TextSize = 16, Position = UDim2.fromOffset(262, 102), Size = UDim2.fromOffset(160, 22), Parent = root }), 1.5)
+	refs.momentum = outlined(sans({ Name = "Momentum", Text = "", TextSize = 18, Position = UDim2.fromOffset(262, 102), Size = UDim2.fromOffset(160, 22), Parent = root }), 1.5)
 
 	-- Armas y tomos de la partida
 	refs.weaponRow = slotRow(root, "Weapons", 150)
@@ -263,13 +263,13 @@ function Hud.init()
 
 	-- Centro: cuenta atrás de la etapa
 	refs.clock = outlined(label({ Name = "Clock", Text = "10:00", TextSize = 54, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(300, 56), Parent = root }), 3)
-	refs.clockLabel = outlined(label({ Name = "ClockLabel", Text = "", TextSize = 24, TextColor3 = C.Bad, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 86), Size = UDim2.fromOffset(500, 28), Parent = root }), 2)
+	refs.clockLabel = outlined(label({ Name = "ClockLabel", Text = "", TextSize = 27, TextColor3 = C.Bad, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 86), Size = UDim2.fromOffset(500, 30), Parent = root }), 2)
 
 	-- Jefe
 	local bossBack = Theme.frame({ Name = "Boss", BackgroundColor3 = Color3.fromRGB(14, 16, 20), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 118), Size = UDim2.fromOffset(620, 26), Visible = false, Parent = root })
 	Theme.stroke(bossBack, Color3.fromRGB(0, 0, 0), 2)
 	refs.bossFill = Theme.frame({ Name = "Fill", BackgroundColor3 = Color3.fromRGB(200, 30, 50), Size = UDim2.fromScale(1, 1), Parent = bossBack })
-	refs.bossText = outlined(label({ Name = "Text", Text = "", TextSize = 22, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = bossBack }), 2)
+	refs.bossText = outlined(label({ Name = "Text", Text = "", TextSize = 25, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = bossBack }), 2)
 	refs.bossBack = bossBack
 
 	-- Arriba a la derecha: precio del próximo cofre y nivel
@@ -294,7 +294,7 @@ function Hud.init()
 	refs.toasts = Theme.frame({ Name = "Toasts", Size = UDim2.fromOffset(700, 160), AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 160), BackgroundTransparency = 1, Parent = root })
 	Theme.list(refs.toasts, nil, 4, Enum.HorizontalAlignment.Center)
 
-	refs.help = outlined(sans({ Name = "Help", Text = helpText(), TextSize = 16, TextColor3 = Color3.fromRGB(220, 220, 215), AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 22, 1, -14), Size = UDim2.fromOffset(500, 20), Parent = root }), 1)
+	refs.help = outlined(sans({ Name = "Help", Text = helpText(), TextSize = 18, TextColor3 = Color3.fromRGB(220, 220, 215), AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 22, 1, -14), Size = UDim2.fromOffset(500, 20), Parent = root }), 1)
 
 	buildMinimap(root)
 
@@ -402,7 +402,7 @@ local function itemCell(item)
 	Theme.stroke(cell, Theme.Rarity[item.rarity], 2)
 	Icons.item(Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = cell }), item.rarity)
 	if item.count > 1 then
-		outlined(label({ Text = "×" .. item.count, TextSize = 18, Size = UDim2.new(1, -3, 0, 18), Position = UDim2.new(0, 0, 1, -17), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 5, Parent = cell }), 1.5)
+		outlined(label({ Text = "×" .. item.count, TextSize = 20, FontFace = Theme.FontFaceDense, Size = UDim2.new(1, -3, 0, 18), Position = UDim2.new(0, 0, 1, -17), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 5, Parent = cell }), 1.5)
 	end
 	return cell
 end
