@@ -89,6 +89,7 @@ local function render(data)
 			top = 68
 			name = Spanish.tomeName(choice.id, name)
 		end
+		local desc = if isTome then Spanish.tomeDescription(choice.id, choice.desc) else choice.desc or ""
 		Theme.label({
 			RichText = true,
 			TextWrapped = true,
@@ -104,7 +105,7 @@ local function render(data)
 				name,
 				C.Accent:ToHex(),
 				choice.subtitle or "",
-				choice.desc or "",
+				desc,
 				C.Good:ToHex(),
 				table.concat(lines, "\n"),
 				C.Muted:ToHex(),

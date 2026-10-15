@@ -47,7 +47,7 @@ local function refresh()
 		end
 		table.insert(lines, "<b>Tomos</b>")
 		for _, t in hud.tomes do
-			table.insert(lines, string.format("  %s (Nv %d) — %s", Spanish.tomeName(t.id, t.name), t.level, Catalog.Tome[t.id].desc))
+			table.insert(lines, string.format("  %s (Nv %d) — %s", Spanish.tomeName(t.id, t.name), t.level, Spanish.tomeDescription(t.id, Catalog.Tome[t.id].desc)))
 		end
 		table.insert(lines, "<b>Objetos</b>")
 		for _, item in hud.items do

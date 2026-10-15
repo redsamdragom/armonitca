@@ -524,6 +524,7 @@ do
 	end
 	check(tomeCells == #Catalog.Tomes, string.format("la pestaña TOMOS muestra los %d tomos", tomeCells))
 	check(hasText(screen, "Tomo de Agilidad"), "ficha del tomo con su nombre en español")
+	check(string.find(table.concat(texts(screen), " | "), "Te mueves más rápido", 1, true) ~= nil, "ficha del tomo con la descripción de lo que hace")
 	-- Con el ID pegado en Data/Images se usa la imagen subida
 	local Images = req(Harness.shared.Data.Images)
 	Images.Tomes.Agility = "rbxassetid://123"
@@ -848,6 +849,7 @@ ClientState.settings.autoPick = false
 modal({ kind = "LevelUp", title = "¡Subiste de nivel!", choices = { { type = "TomeNew", id = "Agility", rarity = "Common", name = "Agility Tome", subtitle = "¡Nuevo tomo!", desc = "+15% de velocidad", changes = {} } }, canSkip = false, charges = { Refresh = 0, Skip = 0, Banish = 0 }, remaining = 0 })
 check(modalGui:FindFirstChild("TomeIcon", true) ~= nil, "la carta de tomo lleva su icono")
 check(string.find(table.concat(texts(modalGui), " | "), "Tomo de Agilidad", 1, true) ~= nil, "la carta de tomo muestra el nombre en español")
+check(string.find(table.concat(texts(modalGui), " | "), "Por nivel: +15% de velocidad", 1, true) ~= nil, "la carta de tomo explica lo que hace")
 modal(nil)
 local levelUp = { kind = "LevelUp", title = "¡Subiste de nivel!", choices = { choice(1), choice(2), choice(3) }, canSkip = false, charges = { Refresh = 1, Skip = 1, Banish = 1 }, remaining = 2 }
 modal(levelUp)

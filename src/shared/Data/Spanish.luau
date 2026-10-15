@@ -90,6 +90,43 @@ function Spanish.tomeName(id: string, fallback: string): string
 	return Spanish.Tomes[id] or fallback
 end
 
+-- Qué hace cada tomo, en palabras sencillas. El efecto por nivel sale de Data/Tomes.
+Spanish.TomeEffects = {
+	Agility = "Te mueves más rápido para esquivar y recoger la experiencia.",
+	Cooldown = "Tus armas atacan más a menudo.",
+	Damage = "Todas tus armas hacen más daño.",
+	Evasion = "Te da probabilidad de esquivar por completo un golpe.",
+	Golden = "Ganas más oro de los enemigos y los cofres.",
+	Health = "Aumenta tu vida máxima.",
+	Knockback = "Tus ataques empujan más lejos a los enemigos.",
+	Precision = "Haces más golpes críticos, que causan daño extra.",
+	ProjectileSpeed = "Tus proyectiles vuelan más rápido y llegan antes.",
+	Regen = "Recuperas vida poco a poco con el tiempo.",
+	Shield = "Un escudo que absorbe el daño antes que tu vida.",
+	Silver = "Ganas más plata, la moneda para comprar desbloqueos.",
+	Size = "Tus ataques son más grandes y alcanzan a más enemigos.",
+	Armor = "Reduce el daño que recibes.",
+	Attraction = "Recoges experiencia, oro y objetos desde más lejos.",
+	Bloody = "Cada golpe que das puede curarte un poco.",
+	Chaos = "Cada vez que lo eliges mejora una estadística al azar.",
+	Cursed = "Sube la dificultad: aparecen más enemigos y más fuertes.",
+	Duration = "Tus ataques y sus efectos duran más tiempo.",
+	Luck = "Más suerte: mejores rarezas en mejoras, cofres y objetos.",
+	Quantity = "Tus armas lanzan más ataques y proyectiles a la vez.",
+	Thorns = "Los enemigos que te golpean reciben daño.",
+	XP = "Ganas más experiencia y subes de nivel antes.",
+}
+
+-- Descripción completa de un tomo: qué hace y cuánto mejora por nivel.
+function Spanish.tomeDescription(id: string, perLevel: string?): string
+	local effect = Spanish.TomeEffects[id] or ""
+	-- El efecto por nivel sólo se añade cuando es una cifra ("+15% de ..."); el Caos ya lo explica
+	if perLevel and string.match(perLevel, "^[%+%-]?%d") then
+		return if effect ~= "" then effect .. " Por nivel: " .. perLevel else perLevel
+	end
+	return effect
+end
+
 function Spanish.characterName(id: string, fallback: string): string
 	local entry = Spanish.Characters[id]
 	return if entry then entry.name else fallback

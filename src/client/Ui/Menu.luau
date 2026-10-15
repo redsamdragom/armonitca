@@ -1331,6 +1331,7 @@ local function unlockEntries(kind: string)
 			kind = kind,
 			id = data.id,
 			name = contentName(kind, data.id, data.name),
+			desc = if kind == "tome" then Spanish.tomeDescription(data.id, data.desc) else data.desc,
 			owned = owned,
 			available = status == "available",
 			price = entry and entry.price,
@@ -1549,12 +1550,31 @@ WINDOWS.Unlocks = {
 		unlockIcon(face, chosen)
 		outlined(Theme.label({ Name = "Name", Text = chosen.name, TextSize = 32, Position = UDim2.fromOffset(137, 4), Size = UDim2.new(1, -160, 0, 38), TextTruncate = Enum.TextTruncate.AtEnd, Parent = detail }), 2)
 		-- Caben tres filas; con dos se separan como en la referencia
-		local step = if #chosen.requirements > 2 then 29 else 35
+		-- Qué hace (tomos y armas) bajo el nombre; los requisitos debajo
+		local top = 44
+		if chosen.desc and chosen.desc ~= "" then
+			local description = outlined(Theme.label({
+				Name = "Description",
+				Text = chosen.desc,
+				TextScaled = true,
+				TextColor3 = C.TextYellow,
+				Position = UDim2.fromOffset(137, 39),
+				Size = UDim2.new(1, -160, 0, 24),
+				Parent = detail,
+			}), 1.5)
+			-- Las descripciones largas se encogen para caber en una línea
+			local limit = Instance.new("UITextSizeConstraint")
+			limit.MaxTextSize = 20
+			limit.MinTextSize = 12
+			limit.Parent = description
+			top = 66
+		end
+		local step = if #chosen.requirements > 2 then 29 elseif top > 44 then 32 else 35
 		for i, req in chosen.requirements do
-			if i > 3 then
+			if i > 3 or top + (i - 1) * step + 28 > 136 then
 				break
 			end
-			requirementRow(detail, 44 + (i - 1) * step, req, function()
+			requirementRow(detail, top + (i - 1) * step, req, function()
 				buy(chosen.key)
 			end)
 		end
