@@ -49,9 +49,6 @@ Theme.FontBody = Enum.Font.Merriweather
 -- Gótica en negrita para títulos, botones y etiquetas; redondeada muy gruesa para el título del juego.
 -- La de palo seco es para el texto pequeño que se lee en plena partida (HUD, cartas, pausa).
 Theme.FontFace = Font.new("rbxasset://fonts/families/GrenzeGotisch.json", Enum.FontWeight.Bold)
--- La misma gótica más gruesa para el texto pequeño (descripciones, cambios, estadísticas, niveles):
--- los trazos finos de la negrita se pierden por debajo de ~24 px.
-Theme.FontFaceDense = Font.new("rbxasset://fonts/families/GrenzeGotisch.json", Enum.FontWeight.ExtraBold)
 Theme.TitleFontFace = Font.new("rbxasset://fonts/families/LuckiestGuy.json")
 Theme.HudFontFace = Font.new("rbxasset://fonts/families/BuilderSans.json", Enum.FontWeight.Bold)
 

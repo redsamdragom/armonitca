@@ -66,10 +66,8 @@ local focusedCard: TextButton? = nil
 local raysConnection: RBXScriptConnection? = nil
 
 -- Abre o cierra la ventana; los rayos sólo giran mientras está abierta.
-local function setOpen(open: boolean, kind: string?)
+local function setOpen(open: boolean)
 	gui.Enabled = open
-	-- El HUD pone la barra de experiencia en arcoíris mientras se elige mejora
-	ClientState.levelUpOpen = open and kind == "LevelUp"
 	if open and not raysConnection then
 		raysConnection = RunService.RenderStepped:Connect(function(dt)
 			rays.Rotation = (rays.Rotation + dt * 6) % 360
@@ -202,7 +200,7 @@ local function buildCard(parent: Instance, choice, index: number, y: number): Te
 	outlined(Theme.label({
 		Name = "Rarity",
 		Text = if isNew then "New" else RARITY_TAG[choice.rarity] or Theme.RarityName[choice.rarity] or "",
-		TextSize = 25,
+		TextSize = 22,
 		TextColor3 = if isNew then WHITE else rarityColor,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Position = UDim2.fromOffset(14, 4),
@@ -214,16 +212,16 @@ local function buildCard(parent: Instance, choice, index: number, y: number): Te
 	local iconInner = Theme.frame({ Name = if choice.type == "TomeUp" or choice.type == "TomeNew" then "TomeIcon" else "ChoiceIcon", BackgroundTransparency = 1, Position = UDim2.fromOffset(4, 4), Size = UDim2.new(1, -8, 1, -8), Parent = iconBox })
 	choiceIcon(iconInner, choice)
 
-	outlined(Theme.label({ Name = "Name", Text = choiceName(choice), TextSize = 35, TextTruncate = Enum.TextTruncate.AtEnd, Position = UDim2.fromOffset(138, 14), Size = UDim2.new(1, -270, 0, 44), Parent = card }), 2.5)
+	outlined(Theme.label({ Name = "Name", Text = choiceName(choice), TextSize = 31, TextTruncate = Enum.TextTruncate.AtEnd, Position = UDim2.fromOffset(138, 18), Size = UDim2.new(1, -270, 0, 40), Parent = card }), 2)
 	local tag = if isNew then "NEW" elseif choice.level then "LVL " .. choice.level else nil
 	if tag then
-		outlined(Theme.label({ Name = "Tag", Text = tag, TextSize = 31, TextColor3 = LEVEL_YELLOW, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -24, 0, 14), Size = UDim2.fromOffset(130, 34), Parent = card }), 2)
+		outlined(Theme.label({ Name = "Tag", Text = tag, TextSize = 28, TextColor3 = LEVEL_YELLOW, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -24, 0, 14), Size = UDim2.fromOffset(130, 34), Parent = card }), 2)
 	end
 
 	-- Cambios "antes → después" o, si no hay, la descripción (y el subtítulo de cofres y tiendas)
 	local changes = choice.changes or {}
 	if #changes > 0 then
-		local step = if #changes > 2 then 23 else 34
+		local step = if #changes > 2 then 22 else 31
 		for k, change in changes do
 			if k > 3 then
 				break
@@ -232,10 +230,9 @@ local function buildCard(parent: Instance, choice, index: number, y: number): Te
 				Name = "Change" .. k,
 				Text = changeText(change),
 				RichText = true,
-				TextSize = if #changes > 2 then 22 else 27,
-				FontFace = Theme.FontFaceDense,
+				TextSize = if #changes > 2 then 20 else 24,
 				TextTruncate = Enum.TextTruncate.AtEnd,
-				Position = UDim2.fromOffset(138, 60 + (k - 1) * step),
+				Position = UDim2.fromOffset(138, 62 + (k - 1) * step),
 				Size = UDim2.new(1, -160, 0, 30),
 				Parent = card,
 			}), 1.5)
@@ -248,10 +245,8 @@ local function buildCard(parent: Instance, choice, index: number, y: number): Te
 		outlined(Theme.label({
 			Name = "Description",
 			Text = desc,
-			TextSize = 24,
-			FontFace = Theme.FontFaceDense,
-			LineHeight = 0.95,
-			TextColor3 = Color3.fromRGB(225, 225, 218),
+			TextSize = 22,
+			TextColor3 = Color3.fromRGB(215, 215, 210),
 			TextWrapped = true,
 			TextYAlignment = Enum.TextYAlignment.Top,
 			Position = UDim2.fromOffset(138, 60),
@@ -280,7 +275,7 @@ local function actionButton(parent: Instance, name: string, text: string, color:
 	local b = Theme.button({
 		Name = name,
 		Text = text,
-		TextSize = 29,
+		TextSize = 26,
 		TextColor3 = if enabled then WHITE else Color3.fromRGB(170, 170, 170),
 		BackgroundColor3 = if enabled then color else Color3.fromRGB(70, 72, 74),
 		AutoButtonColor = enabled,
@@ -293,7 +288,7 @@ local function actionButton(parent: Instance, name: string, text: string, color:
 	end, { edge = 5, radius = 6 })
 	outlined(b, 2)
 	if count then
-		outlined(Theme.label({ Name = "Count", Text = tostring(count), TextSize = 25, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, -3), Size = UDim2.fromOffset(40, 24), ZIndex = 4, Parent = holder }), 1.5)
+		outlined(Theme.label({ Name = "Count", Text = tostring(count), TextSize = 22, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0, -3), Size = UDim2.fromOffset(40, 24), ZIndex = 4, Parent = holder }), 1.5)
 	end
 	return b
 end
@@ -322,7 +317,7 @@ local function renderOffer(data)
 		titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	end
 	if (data.remaining or 0) > 0 and header then
-		outlined(Theme.label({ Name = "Queue", Text = string.format("+%d", data.remaining), TextSize = 29, TextColor3 = LEVEL_YELLOW, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 0), Size = UDim2.new(0, 80, 1, 0), Parent = header }), 1.5)
+		outlined(Theme.label({ Name = "Queue", Text = string.format("+%d", data.remaining), TextSize = 26, TextColor3 = LEVEL_YELLOW, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -18, 0, 0), Size = UDim2.new(0, 80, 1, 0), Parent = header }), 1.5)
 	end
 
 	for i, choice in data.choices do
@@ -367,7 +362,7 @@ local function slotRow(parent: Instance, y: number, count: number, fill: (index:
 end
 
 local function levelBadge(slot: Frame, level: number)
-	outlined(Theme.label({ Name = "Level", Text = "LVL " .. level, TextSize = 19, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.new(1, 4, 0, 20), ZIndex = 6, Parent = slot }), 2)
+	outlined(Theme.label({ Name = "Level", Text = "LVL " .. level, TextSize = 16, TextXAlignment = Enum.TextXAlignment.Center, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, 2), Size = UDim2.new(1, 0, 0, 18), ZIndex = 6, Parent = slot }), 1.5)
 end
 
 local function renderInventory(hud)
@@ -383,7 +378,7 @@ local function renderInventory(hud)
 		Size = UDim2.fromOffset(467, bodyH + 81),
 		Parent = inventoryHolder,
 	}, "Inventario", 56)
-	outlined(Theme.label({ Text = "Armas", TextSize = 35, Position = UDim2.fromOffset(24, 18), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
+	outlined(Theme.label({ Text = "Armas", TextSize = 32, Position = UDim2.fromOffset(24, 18), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
 	slotRow(body, 58, math.max(4, #weapons), function(i, slot)
 		local w = weapons[i]
 		if w then
@@ -392,7 +387,7 @@ local function renderInventory(hud)
 			levelBadge(slot, w.level)
 		end
 	end)
-	outlined(Theme.label({ Text = "Tomos", TextSize = 35, Position = UDim2.fromOffset(24, 140), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
+	outlined(Theme.label({ Text = "Tomos", TextSize = 32, Position = UDim2.fromOffset(24, 140), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
 	slotRow(body, 182, math.max(4, #tomes), function(i, slot)
 		local t = tomes[i]
 		if t then
@@ -401,7 +396,7 @@ local function renderInventory(hud)
 			levelBadge(slot, t.level)
 		end
 	end)
-	outlined(Theme.label({ Text = "Objetos", TextSize = 35, Position = UDim2.fromOffset(24, 262), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
+	outlined(Theme.label({ Text = "Objetos", TextSize = 32, Position = UDim2.fromOffset(24, 262), Size = UDim2.fromOffset(300, 36), Parent = body }), 2)
 	for i, item in items do
 		local size = SLOT - 7
 		local cell = Theme.frame({
@@ -414,7 +409,7 @@ local function renderInventory(hud)
 		Theme.stroke(cell, Theme.Rarity[item.rarity] or C.Outline, 2)
 		Icons.item(Theme.frame({ BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = cell }), item.rarity)
 		if item.count > 1 then
-			outlined(Theme.label({ Text = "×" .. item.count, TextSize = 18, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, 0), Size = UDim2.fromOffset(40, 16), ZIndex = 6, Parent = cell }), 1.5)
+			outlined(Theme.label({ Text = "×" .. item.count, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, 0), Size = UDim2.fromOffset(40, 16), ZIndex = 6, Parent = cell }), 1.5)
 		end
 	end
 end
@@ -484,7 +479,7 @@ local STAT_GROUPS = {
 }
 Modal.StatGroups = STAT_GROUPS
 
-local LINE_H, GROUP_GAP = 21, 13
+local LINE_H, GROUP_GAP = 18.5, 17
 
 local function renderStats(hud)
 	statsHolder:ClearAllChildren()
@@ -506,13 +501,13 @@ local function renderStats(hud)
 		for _, entry in group do
 			local stat, label, format = entry[1], entry[2], entry[3]
 			local value = stats[stat] or Stats.Defaults[stat] or 0
-			local name = Theme.label({ Name = stat, Text = label, TextScaled = true, FontFace = Theme.FontFaceDense, Position = UDim2.fromOffset(16, y), Size = UDim2.fromOffset(240, LINE_H), Parent = body })
+			local name = Theme.label({ Name = stat, Text = label, TextScaled = true, Position = UDim2.fromOffset(16, y), Size = UDim2.fromOffset(250, LINE_H), Parent = body })
 			local limit = Instance.new("UITextSizeConstraint")
-			limit.MaxTextSize = 21
-			limit.MinTextSize = 13
+			limit.MaxTextSize = 19
+			limit.MinTextSize = 11
 			limit.Parent = name
-			outlined(name, 1.5)
-			outlined(Theme.label({ Name = stat .. "Value", Text = format(value), TextSize = 21, FontFace = Theme.FontFaceDense, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, y), Size = UDim2.fromOffset(80, LINE_H), Parent = body }), 1.5)
+			outlined(name, 1)
+			outlined(Theme.label({ Name = stat .. "Value", Text = format(value), TextSize = 19, TextXAlignment = Enum.TextXAlignment.Right, AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -16, 0, y), Size = UDim2.fromOffset(70, LINE_H), Parent = body }), 1)
 			y += LINE_H
 		end
 		if g < #STAT_GROUPS then
@@ -528,10 +523,10 @@ local function buildRays(parent: Instance): Frame
 		local ray = Theme.frame({
 			Name = "Ray",
 			BackgroundColor3 = Color3.fromRGB(255, 246, 190),
-			BackgroundTransparency = 0.5,
+			BackgroundTransparency = 0.55,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(3200, 120),
+			Size = UDim2.fromOffset(3200, 70),
 			Rotation = i * 22.5,
 			Parent = holder,
 		})
@@ -573,7 +568,7 @@ function Modal.init(hudGetter: (() -> any)?)
 	end
 	gui = ClientState.screen("Modal", 20)
 	gui.Enabled = false
-	Theme.frame({ Name = "Shade", Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BackgroundTransparency = 0.78, Parent = gui })
+	Theme.frame({ Name = "Shade", Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BackgroundTransparency = 0.6, Parent = gui })
 	root = Theme.frame({ Name = "Root", BackgroundTransparency = 1, Size = UDim2.fromOffset(1920, DESIGN_H), Parent = gui })
 	designScale = Instance.new("UIScale")
 	designScale.Name = "DesignScale"
@@ -594,7 +589,7 @@ function Modal.init(hudGetter: (() -> any)?)
 			return
 		end
 		openedAt = os.clock()
-		setOpen(true, data.kind)
+		setOpen(true)
 		applyScale()
 		render(data)
 	end)

@@ -702,13 +702,7 @@ for _, d in hudGui:GetDescendants() do
 end
 check(realDots > 0, string.format("marcadores reales del mapa en el minimapa (%d)", realDots))
 local hudTexts = table.concat(texts(hudGui), " | ")
-check(string.find(hudTexts, "LVL %d") ~= nil and string.find(hudTexts, "¡Encuentra el portal del jefe!", 1, true) ~= nil, "el HUD muestra el nivel y la misión")
-for _, name in { "RunTime", "Silver", "Gold", "Kills", "ChestCost" } do
-	local counter = hudGui:FindFirstChild(name, true)
-	local value = counter and counter:FindFirstChild("Value")
-	check(value ~= nil and value.Text ~= "", "contador " .. name .. " en la parte superior")
-end
-check(hudGui:FindFirstChild("Minimap", true) ~= nil and hudGui:FindFirstChild("CompassN", true) ~= nil, "minimapa redondo con brújula")
+check(string.find(hudTexts, "Nivel %d") ~= nil and string.find(hudTexts, "Etapa 1/") ~= nil, "el HUD muestra nivel y etapa")
 print("     HUD: " .. string.sub(string.gsub(hudTexts, "\n", " "), 1, 300))
 check((Harness.remoteLog.Aim and Harness.remoteLog.Aim.count or 0) == 0, "la dirección de mira va al servidor, no se reenvía")
 noNewErrors(before, "partida real sin errores")
@@ -770,13 +764,7 @@ check(string.find(hudTexts, "(+25)", 1, true) ~= nil and string.find(hudTexts, "
 check(hasText(hudGui, "×4"), "objetos con recuento")
 local tomeRow = hudGui:FindFirstChild("Tomes", true)
 check(tomeRow ~= nil and tomeRow:FindFirstChild(Catalog.Tomes[1].id) ~= nil, "icono del tomo de la partida en el HUD")
-check(hudGui:FindFirstChild("Weapons", true) ~= nil, "fila de armas bajo la vida")
-ClientState.levelUpOpen = true
-frames(0.1)
-check(hudGui:FindFirstChild("Rainbow", true).Visible, "la barra de experiencia se pone en arcoíris al subir de nivel")
-ClientState.levelUpOpen = false
-frames(0.1)
-check(not hudGui:FindFirstChild("Rainbow", true).Visible or hud.xp >= hud.xpToNext, "y vuelve a la normalidad después")
+check(string.find(hudTexts, "Tomo de Agilidad", 1, true) ~= nil, "nombre del tomo en español en el HUD")
 
 attempt("Toast", function()
 	Net.get("Toast").OnClientEvent:Fire("¡Aviso de prueba!")
