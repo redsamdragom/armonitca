@@ -422,8 +422,33 @@ local function questText(data): string
 	return "¡Encuentra el portal del jefe!"
 end
 
+-- Barrita de vida bajo los pies del personaje (como en la referencia)
+local function characterBar(fraction: number)
+	local character = Players.LocalPlayer.Character
+	local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then
+		return
+	end
+	local bar = rootPart:FindFirstChild("HealthBar") :: BillboardGui?
+	if not bar then
+		local billboard = Instance.new("BillboardGui")
+		billboard.Name = "HealthBar"
+		billboard.Size = UDim2.fromOffset(100, 10)
+		billboard.StudsOffset = Vector3.new(0, -3.4, 0)
+		billboard.AlwaysOnTop = true
+		billboard.LightInfluence = 0
+		billboard.Parent = rootPart
+		local back = Theme.frame({ Name = "Back", BackgroundColor3 = Color3.fromRGB(20, 20, 22), Size = UDim2.fromScale(1, 1), Parent = billboard })
+		Theme.frame({ Name = "Fill", BackgroundColor3 = Color3.fromRGB(225, 20, 20), Size = UDim2.fromScale(1, 1), Parent = back })
+		bar = billboard
+	end
+	local fill = (bar :: BillboardGui).Back.Fill :: Frame
+	fill.Size = UDim2.fromScale(math.clamp(fraction, 0, 1), 1)
+end
+
 function Hud.update(data)
 	lastHud = data
+	characterBar(data.hp / math.max(1, data.maxHp))
 	local overheal = math.max(0, data.hp - data.maxHp)
 	refs.hpFill.Size = UDim2.fromScale(math.clamp(data.hp / data.maxHp, 0, 1), 1)
 	refs.hpText.Text = string.format("%d/%d%s", math.ceil(math.min(data.hp, data.maxHp)), math.ceil(data.maxHp), if overheal > 0 then string.format(" (+%d)", overheal) else "")
