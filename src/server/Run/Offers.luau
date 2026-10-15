@@ -81,18 +81,35 @@ local function weaponChoice(session, w, rarity: string)
 			stat = stat,
 			delta = delta,
 			label = WEAPON_STAT_LABEL[stat] or stat,
+			from = fmt(stat, before),
+			to = fmt(stat, before + delta),
 			text = string.format("%s: %s → %s", WEAPON_STAT_LABEL[stat] or stat, fmt(stat, before), fmt(stat, before + delta)),
 		})
 	end
 	return {
 		type = "WeaponUp",
 		id = w.id,
+		level = w.level,
 		rarity = rarity,
 		name = def.name,
 		subtitle = string.format("Nivel %d → %d", w.level, w.level + 1),
 		desc = def.desc,
 		changes = changes,
 	}
+end
+
+-- Valor de una estadística para las cartas: porcentajes sin signo ("12%") y cifras tal cual.
+local function tomeValue(stat: string, value: number): string
+	local display = Stats.Display[stat]
+	local kind = display and display[2] or "flat"
+	if kind == "pct" or kind == "eff" then
+		local pct = (if kind == "eff" then Stats.diminishing(value) else value) * 100
+		if math.abs(pct - math.round(pct)) < 0.05 then
+			return string.format("%d%%", math.round(pct))
+		end
+		return string.format("%.1f%%", pct)
+	end
+	return fmt(stat, value)
 end
 
 local function tomeChoice(session, tome, rarity: string, isNew: boolean)
@@ -112,6 +129,7 @@ local function tomeChoice(session, tome, rarity: string, isNew: boolean)
 	return {
 		type = if isNew then "TomeNew" else "TomeUp",
 		id = def.id,
+		level = tome.level,
 		rarity = rarity,
 		name = def.name,
 		subtitle = if isNew then "¡Nuevo tomo!" else string.format("Nivel %d → %d", tome.level, tome.level + 1),
@@ -122,6 +140,9 @@ local function tomeChoice(session, tome, rarity: string, isNew: boolean)
 			{
 				stat = stat,
 				delta = delta,
+				label = Stats.label(stat),
+				from = tomeValue(stat, before),
+				to = tomeValue(stat, before + delta),
 				text = string.format("%s: %s → %s", Stats.label(stat), Stats.format(stat, before), Stats.format(stat, before + delta)),
 			},
 		},

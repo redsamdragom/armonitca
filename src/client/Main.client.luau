@@ -37,7 +37,7 @@ end
 MenuScene.init()
 Menu.init()
 Hud.init()
-Modal.init()
+Modal.init(Hud.last)
 Pause.init(Hud.last)
 Results.init(showMenu)
 DamageNumbers.init()

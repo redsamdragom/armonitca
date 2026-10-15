@@ -851,32 +851,40 @@ check(modalGui:FindFirstChild("TomeIcon", true) ~= nil, "la carta de tomo lleva 
 check(string.find(table.concat(texts(modalGui), " | "), "Tomo de Agilidad", 1, true) ~= nil, "la carta de tomo muestra el nombre en español")
 check(string.find(table.concat(texts(modalGui), " | "), "Por nivel: +15% de velocidad", 1, true) ~= nil, "la carta de tomo explica lo que hace")
 modal(nil)
+-- Mejora de arma: rareza, nivel y "antes → después" con el valor nuevo en verde
+local weaponUp = { type = "WeaponUp", id = "Aura", level = 1, rarity = "Common", name = "Aura", subtitle = "Nivel 1 → 2", desc = "", changes = { { stat = "Damage", label = "Daño", from = "6", to = "7.4", text = "Daño: 6 → 7.4" } } }
+modal({ kind = "LevelUp", title = "¡Subiste de nivel!", choices = { weaponUp }, canSkip = false, charges = { Refresh = 7, Skip = 7, Banish = 7 }, remaining = 0 })
+local upgradeTexts = table.concat(texts(modalGui), " | ")
+check(hasText(modalGui, "Common") and hasText(modalGui, "LVL 1") and string.find(upgradeTexts, "Daño: 6</font> → <font", 1, true) ~= nil and string.find(upgradeTexts, ">7.4</font>", 1, true) ~= nil, "carta de mejora con rareza, nivel y Daño: 6 → 7.4")
+modal(nil)
 local levelUp = { kind = "LevelUp", title = "¡Subiste de nivel!", choices = { choice(1), choice(2), choice(3) }, canSkip = false, charges = { Refresh = 1, Skip = 1, Banish = 1 }, remaining = 2 }
 modal(levelUp)
 check(modalGui.Enabled and #cardsOf() == 3, "subida de nivel con 3 cartas")
 check(GuiService.SelectedObject == cardsOf()[1], "con mando se selecciona la primera carta")
-check(hasText(modalGui, "Refresh (1)") and hasText(modalGui, "Skip (1)") and hasText(modalGui, "Banish (1)"), "botones Refresh, Skip y Banish")
+local function modalButton(name)
+	return find(modalGui, function(d)
+		return d:IsA("TextButton") and d.Name == name
+	end)
+end
+check(hasText(modalGui, "OFERTAS DE MEJORA") and hasText(modalGui, "Inventario") and hasText(modalGui, "Estadísticas"), "ofertas de mejora con inventario y estadísticas a los lados")
+check(modalButton("Banish") and modalButton("Banish").Text == "DESTERRAR" and modalButton("Skip").Text == "SALTAR" and modalButton("Refresh").Text == "REFRESCAR", "botones DESTERRAR, SALTAR y REFRESCAR")
+check(modalGui:FindFirstChild("Count", true) ~= nil and modalGui:FindFirstChild("Count", true).Text == "1", "cada botón muestra sus cargas")
+check(hasText(modalGui, "Max HP") and hasText(modalGui, "Probabilidad de Crítico") and hasText(modalGui, "Incremento de plata"), "panel de estadísticas con los nombres de la referencia")
 local choicesBefore = #modalChoices
 click(cardsOf()[1], "carta 1 al abrir")
 frames(0.1)
 check(#modalChoices == choicesBefore and modalGui.Enabled, "se ignora la elección inmediata al abrir")
 frames(0.3)
-local banish = find(modalGui, function(d)
-	return d:IsA("TextButton") and d.Text == "Banish (1)"
-end)
+local banish = modalButton("Banish")
 click(banish, "Banish")
-check(banish.Text == "Elige qué excluir", "modo Banish")
+check(banish.Text == "ELIGE UNA", "modo Banish")
 click(cardsOf()[2], "carta 2 en modo Banish")
 frames(0.1)
 check(modalChoices[#modalChoices] and modalChoices[#modalChoices].action == "banish" and modalChoices[#modalChoices].index == 2, "Banish envía la carta elegida")
-click(find(modalGui, function(d)
-	return d:IsA("TextButton") and d.Text == "Refresh (1)"
-end), "Refresh")
+click(modalButton("Refresh"), "Refresh")
 frames(0.1)
 check(modalChoices[#modalChoices].action == "refresh", "Refresh enviado")
-click(find(modalGui, function(d)
-	return d:IsA("TextButton") and d.Text == "Skip (1)"
-end), "Skip")
+click(modalButton("Skip"), "Skip")
 frames(0.1)
 check(modalChoices[#modalChoices].action == "skip" and not modalGui.Enabled, "Skip enviado y ventana cerrada")
 modal(levelUp)
@@ -892,10 +900,10 @@ check(modalChoices[#modalChoices].action == "pick" and modalChoices[#modalChoice
 local item = Catalog.Items[3]
 local itemChoice = { type = "Item", id = item.id, rarity = item.rarity, name = item.name, subtitle = "Común · tienes 0", desc = item.desc, changes = {} }
 modal({ kind = "Item", title = "Cofre", choices = { itemChoice }, canSkip = true, remaining = 0 })
-check(modalGui.Enabled and #cardsOf() == 1 and hasText(modalGui, "Descartar"), "objeto de cofre con Descartar")
+check(modalGui.Enabled and #cardsOf() == 1 and hasText(modalGui, "DESCARTAR"), "objeto de cofre con DESCARTAR")
 frames(0.4)
 click(find(modalGui, function(d)
-	return d:IsA("TextButton") and d.Text == "Descartar"
+	return d:IsA("TextButton") and d.Text == "DESCARTAR"
 end), "Descartar")
 frames(0.1)
 check(modalChoices[#modalChoices].action == "skip", "Descartar envía skip")
@@ -904,7 +912,7 @@ for i, stat in { "Damage", "MaxHealth", "MoveSpeed" } do
 	table.insert(shrineChoices, { type = "Shrine", rarity = "Rare", name = stat, subtitle = "Raro", changes = { { text = "10 → 12" } } })
 end
 modal({ kind = "Shrine", title = "Charge Shrine", choices = shrineChoices, canSkip = true, remaining = 1 })
-check(#cardsOf() == 3 and hasText(modalGui, "Cerrar"), "santuario con 3 bonificaciones y Cerrar")
+check(#cardsOf() == 3 and hasText(modalGui, "CERRAR"), "santuario con 3 bonificaciones y CERRAR")
 modal({ kind = "Microwave", title = "Microwave: elige el objeto que quieres duplicar", choices = { itemChoice, itemChoice }, canSkip = true, remaining = 0 })
 check(#cardsOf() == 2, "microondas con los objetos")
 modal({ kind = "Shop", title = "Shady Guy", choices = { itemChoice }, canSkip = true, remaining = 0 })

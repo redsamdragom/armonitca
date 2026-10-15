@@ -279,6 +279,7 @@ local function publicChoices(choices)
 		table.insert(list, {
 			type = c.type,
 			id = c.id,
+			level = c.level,
 			rarity = c.rarity,
 			name = c.name,
 			subtitle = c.subtitle,

@@ -127,6 +127,46 @@ function Spanish.tomeDescription(id: string, perLevel: string?): string
 	return effect
 end
 
+-- Nombre de cada estadística como lo muestra la referencia (panel de estadísticas y cartas).
+Spanish.Stats = {
+	MaxHealth = "Max HP",
+	Regen = "Regeneración HP",
+	Overheal = "Supercura",
+	Shield = "Escudo",
+	Armor = "Armadura",
+	Evasion = "Esquivar",
+	Lifesteal = "Robo de Vida",
+	Thorns = "Espinas",
+	Damage = "Daño",
+	CritChance = "Probabilidad de Crítico",
+	CritDamage = "Daño Crítico",
+	AttackSpeed = "Velocidad de Ataque",
+	Quantity = "Cantidad de Proyectiles",
+	Bounces = "Rebote de Proyectiles",
+	Size = "Tamaño",
+	ProjectileSpeed = "Velocidad de Proyectil",
+	Duration = "Duración",
+	EliteDamage = "Daño a Élites",
+	Knockback = "Retroceso",
+	MoveSpeed = "Velocidad de Movimiento",
+	ExtraJumps = "Salto Extra",
+	JumpHeight = "Altura de Salto",
+	Luck = "Suerte",
+	Difficulty = "Dificultad",
+	PickupRange = "Rango de Recogida",
+	PickupMult = "Rango de Recogida",
+	XPGain = "Aumento de XP",
+	GoldGain = "Aumento de Oro",
+	SilverGain = "Incremento de plata",
+	EliteSpawn = "Incremento de Aparición de Élites",
+	PowerupMult = "Multiplicador de Potenciadores",
+	PowerupChance = "Probabilidad de Caída de Potenciador",
+}
+
+function Spanish.statName(stat: string, fallback: string?): string
+	return Spanish.Stats[stat] or fallback or stat
+end
+
 function Spanish.characterName(id: string, fallback: string): string
 	local entry = Spanish.Characters[id]
 	return if entry then entry.name else fallback

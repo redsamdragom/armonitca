@@ -42,6 +42,21 @@ function Icons.book(holder: GuiObject, cover: Color3?)
 	Theme.stroke(piece(holder, Theme.Colors.Gold, 0.5, 0.42, 0.2, 0.2, 3, 45), Theme.Colors.Outline, 1)
 end
 
+-- Espada estilizada (icono genérico de arma).
+function Icons.sword(holder: GuiObject)
+	outline(piece(holder, Color3.fromRGB(205, 214, 224), 0.61, 0.39, 0.13, 0.67, 1, 45))
+	outline(piece(holder, Color3.fromRGB(150, 105, 50), 0.36, 0.64, 0.42, 0.1, 2, 45))
+	outline(piece(holder, Color3.fromRGB(95, 62, 35), 0.255, 0.745, 0.09, 0.2, 1, 45))
+	outline(piece(holder, Theme.Colors.Gold, 0.165, 0.835, 0.14, 0.14, 2), 8)
+end
+
+-- Gema del color de la rareza (icono genérico de objeto).
+function Icons.gem(holder: GuiObject, color: Color3)
+	Theme.stroke(piece(holder, color, 0.5, 0.5, 0.56, 0.56, 1, 45), Theme.Colors.Outline, 2)
+	piece(holder, color:Lerp(Color3.new(1, 1, 1), 0.45), 0.5, 0.5, 0.28, 0.28, 2, 45)
+	piece(holder, Color3.new(1, 1, 1), 0.43, 0.39, 0.08, 0.08, 3, 45)
+end
+
 -- Imagen a tamaño completo del contenedor.
 function Icons.image(holder: GuiObject, image: string, tint: Color3?): ImageLabel
 	local img = Instance.new("ImageLabel")
@@ -227,6 +242,25 @@ function Icons.tome(holder: GuiObject, tomeId: string, silhouette: boolean?)
 			fallback.Visible = not ok
 		end
 	end)
+end
+
+-- Icono de un arma: la imagen subida (Data/Images) o una losa de su color con una espada.
+function Icons.weapon(holder: GuiObject, weaponId: string)
+	local image = Images.get(Images.Weapons, weaponId)
+	if image then
+		Icons.image(holder, image)
+		return
+	end
+	local Catalog = require(ReplicatedStorage.Shared.Catalog)
+	local weapon = Catalog.Weapon[weaponId]
+	local color = if weapon and weapon.color then Color3.fromRGB(weapon.color[1], weapon.color[2], weapon.color[3]) else Color3.fromRGB(120, 120, 130)
+	local slab = Theme.frame({ Name = "Slab", BackgroundColor3 = color:Lerp(Color3.new(0, 0, 0), 0.5), Size = UDim2.fromScale(1, 1), Parent = holder })
+	Icons.sword(Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.8, 0.8), Parent = slab }))
+end
+
+-- Icono de un objeto: gema del color de su rareza.
+function Icons.item(holder: GuiObject, rarity: string?)
+	Icons.gem(holder, Theme.Rarity[rarity or ""] or Theme.Colors.Text)
 end
 
 return Icons
