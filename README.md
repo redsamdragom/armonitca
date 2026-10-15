@@ -85,7 +85,7 @@ Las 23 imágenes de los tomos están en `assets/tomos/`. Cada archivo lleva el n
 2. Con clic derecho en cada imagen, **Copy ID to Clipboard**.
 3. Pega cada ID en `Images.Tomes` de `src/shared/Data/Images.luau`. El comentario de cada línea indica su archivo.
 
-Sin ID, cada tomo se dibuja como un libro del color de su imagen.
+Además, las 23 imágenes van incluidas en el propio juego (`src/shared/Data/TomeArt.luau`, generado con `python3 tools/generar_tomos.py`). Si un tomo no tiene ID o su imagen subida no carga, el juego dibuja esa copia incluida con un EditableImage, así que los tomos se ven sin subir nada. Si el EditableImage no está disponible, se ve un libro del color del tomo y Output lo avisa.
 
 ## Estructura
 

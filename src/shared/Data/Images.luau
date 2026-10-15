@@ -36,18 +36,19 @@ Images.Portraits = {
 Images.Silhouettes = {}
 
 -- Icono de cada tomo (Desbloqueos, cartas de subida de nivel y HUD). Las imágenes están en
--- assets/tomos/: súbelas todas a la vez (Asset Manager → Bulk Import) y pega aquí cada ID.
+-- assets/tomos/ y también incluidas en el juego (Data/TomeArt): si un ID está vacío o su imagen
+-- no carga, se dibuja el arte incluido, así que no hace falta subir nada para verlas.
 Images.Tomes = {
-	Agility = "rbxassetid://11157781625231", -- assets/tomos/tomo-01-Agility.png
+	Agility = "", -- assets/tomos/tomo-01-Agility.png (el ID 11157781625231 no carga: parece incompleto)
 	Cooldown = "rbxassetid://77976159467388", -- assets/tomos/tomo-03-Cooldown.png
 	Damage = "rbxassetid://70450206870886", -- assets/tomos/tomo-11-Damage.png
 	Evasion = "rbxassetid://124658411720980", -- assets/tomos/tomo-14-Evasion.png
-	Golden = "rbxassetid://11010394204995", -- assets/tomos/tomo-02-Golden.png
-	Health = "rbxassetid://13176387318398", -- assets/tomos/tomo-07-Health.png
+	Golden = "", -- assets/tomos/tomo-02-Golden.png (el ID 11010394204995 no carga: parece incompleto)
+	Health = "", -- assets/tomos/tomo-07-Health.png (el ID 13176387318398 no carga: parece incompleto)
 	Knockback = "rbxassetid://81792752440821", -- assets/tomos/tomo-12-Knockback.png
 	Precision = "rbxassetid://79414187169976", -- assets/tomos/tomo-06-Precision.png
 	ProjectileSpeed = "rbxassetid://100437287994279", -- assets/tomos/tomo-19-ProjectileSpeed.png
-	Regen = "rbxassetid://12858238182516", -- assets/tomos/tomo-09-Regen.png
+	Regen = "", -- assets/tomos/tomo-09-Regen.png (el ID 12858238182516 no carga: parece incompleto)
 	Shield = "rbxassetid://77439551822330", -- assets/tomos/tomo-10-Shield.png
 	Silver = "rbxassetid://132475094248141", -- assets/tomos/tomo-21-Silver.png
 	Size = "rbxassetid://134251038935358", -- assets/tomos/tomo-05-Size.png

@@ -1348,9 +1348,7 @@ local function unlockIcon(holder: GuiObject, e)
 	end
 	if e.kind == "tome" then
 		local inner = Theme.frame({ BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.94, 0.94), Parent = holder })
-		if not Icons.tome(inner, e.id, not e.owned) and not e.owned then
-			Theme.frame({ Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2, Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = holder })
-		end
+		Icons.tome(inner, e.id, not e.owned)
 		return
 	end
 	local image = if e.kind == "weapon" then Images.get(Images.Weapons, e.id) elseif e.kind == "hat" then Images.get(Images.Hats, e.id) else nil

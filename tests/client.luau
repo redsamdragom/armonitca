@@ -550,7 +550,20 @@ do
 		return d.Name == "Golden"
 	end)
 	local fallback = goldenCell and goldenCell:FindFirstChild("Fallback", true)
-	check(fallback ~= nil and fallback.Visible, "si la imagen no carga se ve el libro de color en lugar de un hueco")
+	check(fallback ~= nil and fallback.Visible, "si la imagen no carga se ve el sustituto en lugar de un hueco")
+	local art = fallback and fallback:FindFirstChild("Art", true)
+	local editable = art and art.ImageContent and art.ImageContent.__content
+	local pixels = editable and editable.pixels
+	check(pixels ~= nil and buffer.len(pixels) == 96 * 96 * 4, "el sustituto es el arte incluido del tomo (EditableImage de 96×96)")
+	if pixels then
+		local opaque = 0
+		for i = 0, 96 * 96 - 1 do
+			if buffer.readu8(pixels, i * 4 + 3) == 255 then
+				opaque += 1
+			end
+		end
+		check(buffer.readu8(pixels, 3) == 0 and opaque > 96 * 96 * 0.3, string.format("el arte tiene fondo transparente y el libro dibujado (%d píxeles opacos)", opaque))
+	end
 	local warned = false
 	for i = warningsBefore + 1, #Harness.warnings do
 		warned = warned or string.find(Harness.warnings[i], "rbxassetid://999", 1, true) ~= nil

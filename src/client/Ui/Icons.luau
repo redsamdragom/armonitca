@@ -1,9 +1,11 @@
 -- Iconos compartidos por el menú, las cartas de subida de nivel y el HUD.
 -- Usan la imagen subida (Data/Images) y, mientras no haya ID, un dibujo con primitivas.
 
+local AssetService = game:GetService("AssetService")
 local ContentProvider = game:GetService("ContentProvider")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Images = require(ReplicatedStorage.Shared.Data.Images)
+local TomeArt = require(ReplicatedStorage.Shared.Data.TomeArt)
 local Theme = require(script.Parent.Theme)
 
 local Icons = {}
@@ -97,25 +99,125 @@ local function whenLoaded(image: string, label: string, onResult: (ok: boolean) 
 	end)
 end
 
--- Icono de un tomo; con `silhouette` se ve negro (bloqueado). Mientras la imagen carga, o si no
--- carga, se ve el libro dibujado del color del tomo (oscurecido si está bloqueado). Devuelve true
--- si el tomo tiene imagen configurada.
-function Icons.tome(holder: GuiObject, tomeId: string, silhouette: boolean?): boolean
-	local image = Images.get(Images.Tomes, tomeId)
-	local rgb = Images.TomeColors[tomeId]
-	local cover = if rgb then Color3.fromRGB(rgb[1], rgb[2], rgb[3]) else nil
-	if not image then
-		Icons.book(holder, cover)
+-- Imágenes de los tomos incluidas en el juego (Data/TomeArt) -----------------------------------
+-- Se dibujan con un EditableImage cuando el tomo no tiene ID o su imagen subida no carga, de modo
+-- que el tomo se ve con su arte aunque el ID esté mal. Si el EditableImage no está disponible
+-- (versión antigua o API desactivada) queda el libro dibujado.
+
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local B64_VALUE: { [number]: number } = {}
+for i = 1, #B64 do
+	B64_VALUE[string.byte(B64, i)] = i - 1
+end
+
+-- Decodifica base64 a un buffer.
+function Icons.decodeBase64(text: string): buffer
+	local clean = string.gsub(text, "[^%w%+/]", "")
+	local out = buffer.create(math.floor(#clean * 3 / 4))
+	local n, acc, bits = 0, 0, 0
+	for i = 1, #clean do
+		acc = bit32.bor(bit32.lshift(acc, 6), B64_VALUE[string.byte(clean, i)])
+		bits += 6
+		if bits >= 8 then
+			bits -= 8
+			if n < buffer.len(out) then
+				buffer.writeu8(out, n, bit32.band(bit32.rshift(acc, bits), 0xFF))
+				n += 1
+			end
+		end
+	end
+	return out
+end
+
+-- Píxeles RGBA (size × size × 4) del arte incluido de un tomo, o nil si no lo hay.
+function Icons.tomePixels(tomeId: string): buffer?
+	local art = TomeArt.tomes[tomeId]
+	if not art then
+		return nil
+	end
+	local size = TomeArt.size
+	local palette = Icons.decodeBase64(art.palette)
+	local indices = Icons.decodeBase64(art.pixels)
+	local pixels = buffer.create(size * size * 4)
+	for i = 0, size * size - 1 do
+		local index = buffer.readu8(indices, i)
+		if index > 0 then
+			buffer.writeu8(pixels, i * 4, buffer.readu8(palette, index * 3))
+			buffer.writeu8(pixels, i * 4 + 1, buffer.readu8(palette, index * 3 + 1))
+			buffer.writeu8(pixels, i * 4 + 2, buffer.readu8(palette, index * 3 + 2))
+			buffer.writeu8(pixels, i * 4 + 3, 255)
+		end
+	end
+	return pixels
+end
+
+local artCache: { [string]: any } = {}
+
+local function artContent(tomeId: string): any
+	local cached = artCache[tomeId]
+	if cached ~= nil then
+		return cached or nil
+	end
+	local ok, content = pcall(function()
+		local pixels = Icons.tomePixels(tomeId)
+		if not pixels then
+			return nil
+		end
+		local size = Vector2.new(TomeArt.size, TomeArt.size)
+		local editable = AssetService:CreateEditableImage({ Size = size })
+		editable:WritePixelsBuffer(Vector2.zero, size, pixels)
+		return Content.fromObject(editable)
+	end)
+	if not ok then
+		warn("[Imágenes] No se pudo dibujar el arte incluido del tomo " .. tomeId .. ": " .. tostring(content))
+	end
+	artCache[tomeId] = (ok and content) or false
+	return artCache[tomeId] or nil
+end
+
+-- Arte incluido del tomo sobre `holder`; devuelve false si no se pudo dibujar.
+local function artImage(holder: GuiObject, tomeId: string, silhouette: boolean?): boolean
+	local content = artContent(tomeId)
+	if not content then
 		return false
 	end
-	if loadState[image] == "ok" then
+	local img = Instance.new("ImageLabel")
+	img.Name = "Art"
+	img.BackgroundTransparency = 1
+	img.Size = UDim2.fromScale(1, 1)
+	img.ScaleType = Enum.ScaleType.Fit
+	img.ImageContent = content
+	img.ImageColor3 = if silhouette then Color3.new(0, 0, 0) else Color3.new(1, 1, 1)
+	img.ZIndex = holder.ZIndex
+	img.Parent = holder
+	return true
+end
+
+-- Sustituto mientras la imagen subida no está: el arte incluido o, si no se puede, el libro
+-- dibujado del color del tomo (oscurecido si está bloqueado).
+local function fallbackIcon(holder: GuiObject, tomeId: string, silhouette: boolean?)
+	if artImage(holder, tomeId, silhouette) then
+		return
+	end
+	local rgb = Images.TomeColors[tomeId]
+	Icons.book(holder, if rgb then Color3.fromRGB(rgb[1], rgb[2], rgb[3]) else nil)
+	if silhouette then
+		Theme.frame({ Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2, Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = holder })
+	end
+end
+
+-- Icono de un tomo; con `silhouette` se ve negro (bloqueado). Usa la imagen subida (ID de
+-- Data/Images); mientras carga, si no carga o si no hay ID, el arte incluido en el juego.
+function Icons.tome(holder: GuiObject, tomeId: string, silhouette: boolean?)
+	local image = Images.get(Images.Tomes, tomeId)
+	if image and loadState[image] == "ok" then
 		Icons.image(holder, image, if silhouette then Color3.new(0, 0, 0) else nil)
-		return true
+		return
 	end
 	local fallback = Theme.frame({ Name = "Fallback", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = holder })
-	Icons.book(fallback, cover)
-	if silhouette then
-		Theme.frame({ Name = "Shadow", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.2, Size = UDim2.fromScale(1, 1), ZIndex = 5, Parent = fallback })
+	fallbackIcon(fallback, tomeId, silhouette)
+	if not image then
+		return
 	end
 	local img = Icons.image(holder, image, if silhouette then Color3.new(0, 0, 0) else nil)
 	img.Visible = false
@@ -125,7 +227,6 @@ function Icons.tome(holder: GuiObject, tomeId: string, silhouette: boolean?): bo
 			fallback.Visible = not ok
 		end
 	end)
-	return true
 end
 
 return Icons

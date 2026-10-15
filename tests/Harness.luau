@@ -252,7 +252,11 @@ local function typeProblem(datatype, value, isInstance)
 		if t ~= "number" then
 			return "number expected, got " .. t
 		end
-	elseif datatype == "String" or datatype == "ContentId" or datatype == "Content" then
+	elseif datatype == "Content" then
+		if t ~= "string" and t ~= "number" and not (type(value) == "table" and value.__content ~= nil) then
+			return "Content expected, got " .. t
+		end
+	elseif datatype == "String" or datatype == "ContentId" then
 		if t ~= "string" and t ~= "number" then
 			return "string expected, got " .. t
 		end
@@ -872,8 +876,20 @@ function Harness.build(root)
 		Debris = new("Debris", { Name = "Debris" }),
 		DataStoreService = new("DataStoreService", { Name = "DataStoreService" }),
 		ContentProvider = new("ContentProvider", { Name = "ContentProvider" }),
+		AssetService = new("AssetService", { Name = "AssetService" }),
 		Workspace = workspace,
 	}
+	-- EditableImage simulado: guarda los píxeles escritos para poder comprobarlos
+	services.AssetService.CreateEditableImage = function(_, options)
+		local size = options and options.Size or roblox.Vector2.new(512, 512)
+		return {
+			Size = size,
+			WritePixelsBuffer = function(self, position, region, pixels)
+				assert(buffer.len(pixels) == region.X * region.Y * 4, "WritePixelsBuffer: tamaño de buffer incorrecto")
+				self.pixels = pixels
+			end,
+		}
+	end
 	-- Carga de imágenes: todas cargan salvo las de Harness.failedAssets[id] = true
 	Harness.failedAssets = {}
 	services.ContentProvider.PreloadAsync = function(_, list, callback)
@@ -1024,6 +1040,11 @@ function Harness.build(root)
 		UDim = roblox.UDim,
 		UDim2 = roblox.UDim2,
 		Enum = roblox.Enum,
+		Content = {
+			fromObject = function(object)
+				return { __content = object }
+			end,
+		},
 		Font = roblox.Font,
 		NumberSequence = roblox.NumberSequence,
 		NumberSequenceKeypoint = roblox.NumberSequenceKeypoint,
