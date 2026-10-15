@@ -57,6 +57,52 @@ function Icons.gem(holder: GuiObject, color: Color3)
 	piece(holder, Color3.new(1, 1, 1), 0.43, 0.39, 0.08, 0.08, 3, 45)
 end
 
+-- Iconos pequeños del HUD -------------------------------------------------------------------------
+
+local function circle(parent: Instance, color: Color3, x: number, y: number, size: number, z: number): Frame
+	local f = piece(parent, color, x, y, size, size, z)
+	f.SizeConstraint = Enum.SizeConstraint.RelativeYY
+	Theme.corner(f, 999)
+	return f
+end
+
+-- Reloj: esfera blanca con dos agujas.
+function Icons.clock(holder: GuiObject)
+	Theme.stroke(circle(holder, Color3.fromRGB(245, 245, 245), 0.5, 0.5, 0.9, 1), Theme.Colors.Outline, 2)
+	local dark = Color3.fromRGB(30, 30, 34)
+	piece(holder, dark, 0.5, 0.36, 0.1, 0.32, 2)
+	piece(holder, dark, 0.62, 0.5, 0.26, 0.1, 2)
+end
+
+-- Moneda redonda con canto oscuro y una letra (plata "S", oro "G").
+function Icons.coin(holder: GuiObject, color: Color3, letter: string)
+	Theme.stroke(circle(holder, color:Lerp(Color3.new(0, 0, 0), 0.25), 0.5, 0.5, 0.92, 1), Theme.Colors.Outline, 2)
+	circle(holder, color, 0.5, 0.5, 0.7, 2)
+	local text = Theme.label({ Text = letter, FontFace = Theme.HudFontFace, TextScaled = true, TextColor3 = color:Lerp(Color3.new(0, 0, 0), 0.45), TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromScale(1, 1), ZIndex = 3, Parent = holder })
+	text.Name = "Letter"
+end
+
+-- Calavera blanca.
+function Icons.skull(holder: GuiObject)
+	local white = Color3.fromRGB(245, 245, 240)
+	local head = piece(holder, white, 0.5, 0.42, 0.84, 0.7, 1)
+	Theme.corner(head, 999)
+	Theme.stroke(head, Theme.Colors.Outline, 2)
+	Theme.stroke(piece(holder, white, 0.5, 0.82, 0.5, 0.26, 1), Theme.Colors.Outline, 2)
+	local dark = Color3.fromRGB(20, 20, 24)
+	Theme.corner(piece(holder, dark, 0.33, 0.45, 0.24, 0.24, 2), 999)
+	Theme.corner(piece(holder, dark, 0.67, 0.45, 0.24, 0.24, 2), 999)
+	piece(holder, dark, 0.5, 0.83, 0.06, 0.18, 2)
+end
+
+-- Cofre de madera con herrajes dorados.
+function Icons.chest(holder: GuiObject)
+	Theme.stroke(piece(holder, Color3.fromRGB(150, 92, 40), 0.5, 0.58, 1, 0.7, 1), Theme.Colors.Outline, 2)
+	Theme.stroke(piece(holder, Color3.fromRGB(120, 70, 30), 0.5, 0.3, 1, 0.34, 1), Theme.Colors.Outline, 2)
+	piece(holder, Theme.Colors.Gold, 0.5, 0.47, 1, 0.12, 2)
+	Theme.stroke(piece(holder, Theme.Colors.Gold, 0.5, 0.52, 0.2, 0.26, 3), Theme.Colors.Outline, 1)
+end
+
 -- Imagen a tamaño completo del contenedor.
 function Icons.image(holder: GuiObject, image: string, tint: Color3?): ImageLabel
 	local img = Instance.new("ImageLabel")

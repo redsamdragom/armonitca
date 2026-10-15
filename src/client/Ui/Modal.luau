@@ -66,8 +66,10 @@ local focusedCard: TextButton? = nil
 local raysConnection: RBXScriptConnection? = nil
 
 -- Abre o cierra la ventana; los rayos sólo giran mientras está abierta.
-local function setOpen(open: boolean)
+local function setOpen(open: boolean, kind: string?)
 	gui.Enabled = open
+	-- El HUD pone la barra de experiencia en arcoíris mientras se elige mejora
+	ClientState.levelUpOpen = open and kind == "LevelUp"
 	if open and not raysConnection then
 		raysConnection = RunService.RenderStepped:Connect(function(dt)
 			rays.Rotation = (rays.Rotation + dt * 6) % 360
@@ -523,10 +525,10 @@ local function buildRays(parent: Instance): Frame
 		local ray = Theme.frame({
 			Name = "Ray",
 			BackgroundColor3 = Color3.fromRGB(255, 246, 190),
-			BackgroundTransparency = 0.55,
+			BackgroundTransparency = 0.5,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(3200, 70),
+			Size = UDim2.fromOffset(3200, 120),
 			Rotation = i * 22.5,
 			Parent = holder,
 		})
@@ -568,7 +570,7 @@ function Modal.init(hudGetter: (() -> any)?)
 	end
 	gui = ClientState.screen("Modal", 20)
 	gui.Enabled = false
-	Theme.frame({ Name = "Shade", Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BackgroundTransparency = 0.6, Parent = gui })
+	Theme.frame({ Name = "Shade", Size = UDim2.fromScale(1, 1), BackgroundColor3 = BLACK, BackgroundTransparency = 0.78, Parent = gui })
 	root = Theme.frame({ Name = "Root", BackgroundTransparency = 1, Size = UDim2.fromOffset(1920, DESIGN_H), Parent = gui })
 	designScale = Instance.new("UIScale")
 	designScale.Name = "DesignScale"
@@ -589,7 +591,7 @@ function Modal.init(hudGetter: (() -> any)?)
 			return
 		end
 		openedAt = os.clock()
-		setOpen(true)
+		setOpen(true, data.kind)
 		applyScale()
 		render(data)
 	end)

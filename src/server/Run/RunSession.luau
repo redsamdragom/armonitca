@@ -875,6 +875,10 @@ function RunSession:sendHud()
 		paused = self.paused,
 		momentum = self.momentum,
 		stats = s,
+		runTime = self.totalTime,
+		chestCost = if self.interactables then self.interactables:chestCost() else nil,
+		-- Plata ganada hasta ahora (sin el multiplicador del Final Swarm, que se aplica al final)
+		silverRun = math.floor((self.totalTime / 60 * Config.Economy.SilverPerMinute + self.bossesDefeated * Config.Economy.SilverPerBoss + self.silverFound) * (1 + s.SilverGain)),
 	})
 end
 
