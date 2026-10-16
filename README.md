@@ -89,7 +89,7 @@ Además, las 23 imágenes van incluidas en el propio juego (`src/shared/Data/Tom
 
 ## Diseños de los personajes
 
-Los modelos hechos a mano están en `src/shared/Personajes/<Id>.rbxm` (Rojo los mete en `ReplicatedStorage.Shared.Personajes`). Con diseño, el personaje aparece así en la partida (se usa como `StarterCharacter`, con las animaciones de Roblox) y en las vistas del menú; sin diseño, se usa el avatar con el atuendo de primitivas.
+Los modelos hechos a mano están en `src/shared/Personajes/<Id>.rbxm` (Rojo los mete en `ReplicatedStorage.Shared.Personajes`). Con diseño, el personaje aparece así en la partida (se usa como `StarterCharacter`, con las animaciones de Roblox) y en las vistas del menú; sin diseño, se usa el avatar con el atuendo de primitivas. Los que llevan patineta (Calcium y Tony McZoom) no usan la animación de andar: `src/client/Skating.luau` les pone una postura de patinar (inclinación, impulso con una pierna y brazos para el equilibrio).
 
 | Diseño | Personaje |
 | --- | --- |
@@ -104,7 +104,7 @@ Los modelos hechos a mano están en `src/shared/Personajes/<Id>.rbxm` (Rojo los 
 | Lagartija Ancha con Lentes | Monke |
 | Gato Voxel Skater | Tony McZoom (Tony McVeloz) |
 
-Para importar diseños nuevos desde un lugar de Studio, añade su nombre a `MAPPING` en `tools/importar_personajes.luau` y ejecuta `lune run tools/importar_personajes <lugar.rbxl>` (hace falta Lune 0.11 o posterior). El script quita los scripts y herramientas, deja las patinetas soldadas bajo los pies y quita la colisión a las piezas de adorno.
+Para importar diseños nuevos desde un lugar de Studio, añade su nombre a `MAPPING` en `tools/importar_personajes.luau` y ejecuta `lune run tools/importar_personajes <lugar.rbxl>` (hace falta Lune 0.11 o posterior). El script quita los scripts y herramientas, deja las patinetas soldadas bajo los pies y quita la colisión a las piezas de adorno. Además arregla el esqueleto para que caminen bien: orienta las articulaciones como en el R6 estándar (si no, la animación de andar mueve brazos y piernas hacia los lados), centra el `HumanoidRootPart` bajo el torso y calcula la `HipHeight` para que los pies (o la patineta) toquen el suelo.
 
 ## Estructura
 
@@ -126,6 +126,7 @@ src/client/
   Main.client.luau       Arranque del cliente
   ClientState.luau       Perfil, opciones y teclas
   Movement.luau          Saltos extra, planeo, escalada, baja gravedad y mira
+  Skating.luau           Postura de patinar de los diseños con patineta
   Ui/                    Menu, Hud, Modal, Pause, Results, DamageNumbers, Preview, Theme
 tests/                   Harness, simulate, client, matrix (Lune)
 docs/MATRIZ.md           Matriz de correspondencia con la referencia

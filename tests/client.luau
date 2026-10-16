@@ -55,6 +55,9 @@ local function frames(seconds)
 		attempt("RenderStepped", function()
 			RunService.RenderStepped:Fire(DT)
 		end)
+		attempt("Stepped", function()
+			RunService.Stepped:Fire(t, DT)
+		end)
 		attempt("Heartbeat", function()
 			RunService.Heartbeat:Fire(DT)
 		end)
@@ -743,6 +746,64 @@ player:SetAttribute("CanFloat", false)
 player:SetAttribute("CanClimb", false)
 frames(0.2)
 noNewErrors(before, "movimiento sin errores")
+
+print("== Postura de patinar (diseños con patineta)")
+before = #Harness.errors
+local Skating = req(Harness.client.Skating)
+local new = Harness.new
+local function skater(quadruped)
+	local model = new("Model", { Name = "Patinador" })
+	model:SetAttribute("Diseno", "Esqueleto Skater")
+	local root = new("Part", { Name = "HumanoidRootPart", Size = roblox.Vector3.new(2, 2, 1), Parent = model })
+	local torso = new("Part", { Name = "Torso", Size = if quadruped then roblox.Vector3.new(1.4, 1.1, 3.1) else roblox.Vector3.new(2, 2, 1), Parent = model })
+	local joints = {}
+	for _, name in { "RootJoint", "Neck", "Right Shoulder", "Left Shoulder", "Right Hip", "Left Hip" } do
+		joints[name] = new("Motor6D", { Name = name, Part0 = if name == "RootJoint" then root else torso, Parent = if name == "RootJoint" then root else torso })
+	end
+	local board = new("Model", { Name = "Patineta", Parent = model })
+	new("Part", { Name = "Tabla", Parent = board })
+	new("LocalScript", { Name = "Animate", Parent = model })
+	local hum = new("Humanoid", { Name = "Humanoid", WalkSpeed = 16, Parent = model })
+	new("Animator", { Name = "Animator", Parent = hum })
+	model.Parent = Harness.workspace
+	return model, root, hum, joints
+end
+for _, quadruped in { false, true } do
+	local model, root, hum, joints = skater(quadruped)
+	local kind = if quadruped then "cuadrúpedo" else "bípedo"
+	check(Skating.isSkater(model), "se reconoce el diseño con patineta (" .. kind .. ")")
+	attempt("Skating.track", Skating.track, model)
+	check(model:FindFirstChild("Animate") == nil, "se quita la animación de andar de Roblox (" .. kind .. ")")
+	root.AssemblyLinearVelocity = roblox.Vector3.new(16, 0, 0)
+	local lowest = 1
+	for _ = 1, 40 do
+		frames(DT)
+		lowest = math.min(lowest, joints["Right Hip"].Transform.UpVector.Y)
+	end
+	check(lowest < 0.95, "la pierna se impulsa al avanzar (" .. kind .. ")")
+	local lean = joints.RootJoint.Transform
+	check(lean.UpVector.Y < 0.9999, "el torso se inclina al avanzar (" .. kind .. ")")
+	local shoulder = joints["Right Shoulder"].Transform
+	hum._props.State = Enum.HumanoidStateType.Freefall
+	frames(0.6)
+	hum._props.State = nil
+	local airShoulder = joints["Right Shoulder"].Transform
+	check((airShoulder.UpVector - shoulder.UpVector).Magnitude > 0.2, "postura de salto en el aire (" .. kind .. ")")
+	model:Destroy()
+	frames(0.1)
+end
+local walker = new("Model", { Name = "Andarin" })
+walker:SetAttribute("Diseno", "Lobo Mago")
+new("Part", { Name = "HumanoidRootPart", Parent = walker })
+new("Humanoid", { Name = "Humanoid", Parent = walker })
+new("LocalScript", { Name = "Animate", Parent = walker })
+walker.Parent = Harness.workspace
+attempt("Skating.track andarín", Skating.track, walker)
+frames(0.1)
+check(walker:FindFirstChild("Animate") ~= nil, "los diseños sin patineta conservan la animación de andar")
+walker:Destroy()
+attempt("Skating.track personaje", Skating.track, character)
+noNewErrors(before, "postura de patinar sin errores")
 
 print("== HUD, avisos, minimapa y números de daño")
 before = #Harness.errors

@@ -9,7 +9,7 @@ Config.ReferenceVersion = "1.0.69"
 
 -- Menú principal
 Config.GameTitle = "ARMONITCA"
-Config.GameVersion = "0.4.1"
+Config.GameVersion = "0.4.2"
 -- Invitación del servidor de Discord (p. ej. "https://discord.gg/xxxx"). Vacía: el botón DISCORD
 -- avisa de que falta configurarla.
 Config.DiscordInvite = ""

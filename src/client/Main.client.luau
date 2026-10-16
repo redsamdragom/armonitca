@@ -1,5 +1,5 @@
--- Arranque del cliente: escena del menú, menús, HUD, elecciones, pausa, resultados, números de daño
--- y movimiento.
+-- Arranque del cliente: escena del menú, menús, HUD, elecciones, pausa, resultados, números de daño,
+-- movimiento y postura de patinar.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,6 +9,7 @@ local Net = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Net")
 local Client = script.Parent
 local ClientState = require(Client.ClientState)
 local Movement = require(Client.Movement)
+local Skating = require(Client.Skating)
 local Ui = Client.Ui
 local MenuScene = require(Ui.MenuScene)
 local Menu = require(Ui.Menu)
@@ -42,6 +43,7 @@ Pause.init(Hud.last)
 Results.init(showMenu)
 DamageNumbers.init()
 Movement.init()
+Skating.init()
 
 Net.get("Profile").OnClientEvent:Connect(ClientState.setProfile)
 

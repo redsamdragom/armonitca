@@ -682,6 +682,10 @@ end
 function Methods:GetState()
 	return self._props.State or roblox.Enum.HumanoidStateType.Running
 end
+-- Animator: el arnés no reproduce animaciones
+function Methods:GetPlayingAnimationTracks()
+	return {}
+end
 
 -- Comprobación de que una carga útil de red es serializable por Roblox
 local function validatePayload(value, path, seen)
